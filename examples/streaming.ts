@@ -5,14 +5,14 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 async function main() {
-  const provider = helicone({
+  const gateway = helicone({
     apiKey: process.env.HELICONE_API_KEY
   });
 
   console.log('Streaming response...\n');
 
   const result = await streamText({
-    model: provider.languageModel('gpt-4o-mini'),
+    model: gateway.languageModel('gpt-4o-mini'),
     prompt: 'Write a short story about a robot learning to paint',
     maxOutputTokens: 300,
   });

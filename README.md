@@ -4,12 +4,13 @@ A [Vercel AI SDK](https://ai-sdk.dev/) provider for [Helicone](https://helicone.
 
 ## Features
 
-- ✅ **100+ AI Models**: Access to OpenAI, Anthropic, Google, Groq, Cohere, and more through Helicone's AI gateway
+- ✅ **100+ AI Models**: Access to OpenAI, Anthropic, Google, Groq, and more through Helicone's AI gateway
 - ✅ **Observability**: Automatic request logging, metrics, and monitoring through Helicone
 - ✅ **Model Switching**: Easy switching between different AI providers and models
 - ✅ **Fallbacks**: Configure model fallbacks for improved reliability
 - ✅ **Caching**: Built-in caching support for faster responses
 - ✅ **Sessions & Tags**: Organize requests with sessions, user IDs, and custom tags
+- ✅ **BYOK**: Bring your own key
 - ✅ **TypeScript**: Full TypeScript support with comprehensive type definitions
 
 ## Installation
@@ -52,28 +53,26 @@ const gateway = helicone({
 
 ### Model Selection
 
-Specify models by name only. Helicone's AI gateway will automatically route to the appropriate provider:
+Specify models by wname only. Helicone's AI gateway will automatically route to the appropriate provider:
 
 ```typescript
 // OpenAI models
 gateway.languageModel('gpt-4o')
-gateway.languageModel('gpt-4o-mini')
-gateway.languageModel('chatgpt-4o-latest')
-
-// Anthropic models
-gateway.languageModel('claude-3.7-sonnet')
 gateway.languageModel('claude-4.5-sonnet')
-gateway.languageModel('claude-3.5-haiku')
-
-// Google models
 gateway.languageModel('gemini-2.5-pro')
-gateway.languageModel('gemini-2.5-flash')
-
-// xAI models
 gateway.languageModel('grok-4')
 ```
 
 For the complete list of supported model names, visit [helicone.ai/models](https://helicone.ai/models).
+
+If you'd like to select your own provider, you can do so by passing the provider name as the second argument:
+
+```typescript
+gateway.languageModel('gpt-4o/openai');
+gateway.languageModel('claude-4.5-sonnet/anthropic');
+gateway.languageModel('gemini-2.5-pro/google');
+gateway.languageModel('grok-4/xai');
+```
 
 ## Advanced Features
 
@@ -94,39 +93,6 @@ const result = await generateText({
     },
   }),
   prompt: 'Hello!',
-});
-```
-
-### Model Fallbacks
-
-```typescript
-const result = await generateText({
-  model: gateway.languageModel('gpt-4o', {
-    extraBody: {
-      helicone: {
-        fallbacks: [
-          { model: 'claude-3.7-sonnet' },
-          { model: 'gpt-4o-mini' },
-        ],
-      },
-    },
-  }),
-  prompt: 'Analyze this data...',
-});
-```
-
-### Caching
-
-```typescript
-const result = await generateText({
-  model: gateway.languageModel('gpt-4o', {
-    extraBody: {
-      helicone: {
-        cache: true, // Enable caching for this request
-      },
-    },
-  }),
-  prompt: 'What is the capital of France?',
 });
 ```
 
@@ -189,40 +155,9 @@ const result = await generateText({
 });
 ```
 
-## Environment Variables
+## BYOK - Bring your own key
 
-You can also configure the provider using environment variables:
-
-```bash
-HELICONE_API_KEY=your-helicone-api-key
-OPENAI_API_KEY=your-openai-api-key
-ANTHROPIC_API_KEY=your-anthropic-api-key
-```
-
-```typescript
-// Will automatically use environment variables
-const provider = helicone();
-```
-
-## Error Handling
-
-```typescript
-import { HeliconeError } from '@helicone/ai-sdk-provider';
-
-try {
-  const result = await generateText({
-    model: provider.languageModel('gpt-4o'),
-    prompt: 'Hello!',
-  });
-} catch (error) {
-  if (HeliconeError.isHeliconeError(error)) {
-    console.error('Helicone Error:', error.data);
-    console.error('Status:', error.response?.status);
-  } else {
-    console.error('Other error:', error);
-  }
-}
-```
+You can also configure your provider using your own provider API key in your [Helicone account settings](https://us.helicone.ai/settings/providers).
 
 ## Supported Models
 
@@ -236,10 +171,6 @@ The provider supports all models available through Helicone's AI gateway, includ
 
 For the complete and up-to-date list of supported models, visit [helicone.ai/models](https://helicone.ai/models).
 
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
 ## License
 
 MIT © [Helicone](https://helicone.ai)
@@ -249,4 +180,4 @@ MIT © [Helicone](https://helicone.ai)
 - [Helicone Website](https://helicone.ai)
 - [Helicone Documentation](https://docs.helicone.ai)
 - [Vercel AI SDK](https://ai-sdk.dev/)
-- [GitHub Repository](https://github.com/Helicone/helicone-vercel-ai-sdk)
+- [Helicone GitHub Repository](https://github.com/Helicone/helicone)
