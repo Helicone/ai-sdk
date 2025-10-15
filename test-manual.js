@@ -8,10 +8,7 @@ console.log('🧪 Testing Helicone Provider...\n');
 // Test 1: Provider Creation
 try {
   const provider = helicone({
-    apiKey: process.env.HELICONE_API_KEY || 'test-key',
-    providerApiKeys: {
-      openai: process.env.OPENAI_API_KEY || 'test-openai-key',
-    },
+    apiKey: process.env.HELICONE_API_KEY || 'test-key'
   });
 
   console.log('✅ Provider created successfully');

@@ -1,12 +1,12 @@
 import { helicone } from '@helicone/ai-sdk-provider';
 import { streamText } from 'ai';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 async function main() {
   const provider = helicone({
-    apiKey: process.env.HELICONE_API_KEY,
-    providerApiKeys: {
-      openai: process.env.OPENAI_API_KEY!,
-    },
+    apiKey: process.env.HELICONE_API_KEY
   });
 
   console.log('Streaming response...\n');

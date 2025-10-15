@@ -7,10 +7,7 @@ dotenv.config();
 async function main() {
   // Initialize the Helicone provider
   const gateway = helicone({
-    apiKey: process.env.HELICONE_API_KEY!,
-    // providerApiKeys: {
-    //   openai: process.env.OPENAI_API_KEY!
-    // },
+    apiKey: process.env.HELICONE_API_KEY!
   });
 
   const result = await generateText({

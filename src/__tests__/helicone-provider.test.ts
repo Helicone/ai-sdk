@@ -11,10 +11,7 @@ describe('HeliconeProvider', () => {
     it('should create provider with custom settings', () => {
       const provider = new HeliconeProvider({
         apiKey: 'test-key',
-        baseURL: 'https://custom.helicone.ai',
-        providerApiKeys: {
-          openai: 'sk-test',
-        },
+        baseURL: 'https://custom.helicone.ai'
       });
       expect(provider.specificationVersion).toBe('v2');
     });
@@ -62,6 +59,282 @@ describe('HeliconeProvider', () => {
       };
       const provider = createHelicone(config);
       expect(provider).toBeInstanceOf(HeliconeProvider);
+    });
+  });
+
+  describe('modelName/providerName format routing', () => {
+    let mockFetch: jest.Mock;
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+      mockFetch = jest.fn();
+      global.fetch = mockFetch;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('should route gpt-4o/openai to OpenAI provider', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o/openai');
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      expect(fetchCall[0]).toContain('/v1/chat/completions');
+
+      const requestBody = JSON.parse(fetchCall[1].body);
+      expect(requestBody.model).toBe('gpt-4o/openai');
+    });
+
+    it('should route claude-3.5-sonnet/anthropic to Anthropic provider', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Claude response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 15,
+            completion_tokens: 25,
+            total_tokens: 40
+          }
+        })
+      });
+
+      const model = provider.languageModel('claude-3.5-sonnet/anthropic');
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello Claude' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+
+      const requestBody = JSON.parse(fetchCall[1].body);
+      expect(requestBody.model).toBe('claude-3.5-sonnet/anthropic');
+    });
+
+    it('should route deepseek-v3.1-terminus/novita to Novita provider', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'DeepSeek response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 12,
+            completion_tokens: 18,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('deepseek-v3.1-terminus/novita');
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello DeepSeek' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+
+      const requestBody = JSON.parse(fetchCall[1].body);
+      expect(requestBody.model).toBe('deepseek-v3.1-terminus/novita');
+    });
+
+    it('should handle streaming with modelName/providerName format', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      const mockStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}\n\n'));
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        body: mockStream
+      });
+
+      const model = provider.languageModel('gpt-4o-mini/openai');
+
+      await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Stream test' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+
+      const requestBody = JSON.parse(fetchCall[1].body);
+      expect(requestBody.model).toBe('gpt-4o-mini/openai');
+      expect(requestBody.stream).toBe(true);
+    });
+
+    it('should preserve model ID without provider suffix when not specified', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 10,
+            total_tokens: 20
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o');
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+
+      const requestBody = JSON.parse(fetchCall[1].body);
+      expect(requestBody.model).toBe('gpt-4o');
+    });
+
+    it('should send correct headers with modelName/providerName format', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key',
+        baseURL: 'https://custom.helicone.ai',
+        headers: {
+          'X-Custom-Header': 'custom-value'
+        }
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 5,
+            completion_tokens: 5,
+            total_tokens: 10
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o/openai');
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+
+      expect(fetchCall[0]).toBe('https://custom.helicone.ai/v1/chat/completions');
+
+      const headers = fetchCall[1].headers;
+      expect(headers['Authorization']).toBe('Bearer test-helicone-key');
+      expect(headers['X-Custom-Header']).toBe('custom-value');
+      expect(headers['Content-Type']).toBe('application/json');
+    });
+
+    it('should handle multiple different provider formats in sequence', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 10,
+            total_tokens: 20
+          }
+        })
+      };
+
+      mockFetch.mockResolvedValue(mockResponse);
+
+      const models = [
+        'gpt-4o/openai',
+        'claude-3.5-sonnet/anthropic',
+        'deepseek-v3.1-terminus/novita'
+      ];
+
+      for (const modelId of models) {
+        const model = provider.languageModel(modelId);
+        await model.doGenerate({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }]
+        });
+      }
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+
+      const requestBodies = mockFetch.mock.calls.map(call => JSON.parse(call[1].body));
+      expect(requestBodies[0].model).toBe('gpt-4o/openai');
+      expect(requestBodies[1].model).toBe('claude-3.5-sonnet/anthropic');
+      expect(requestBodies[2].model).toBe('deepseek-v3.1-terminus/novita');
     });
   });
 });
