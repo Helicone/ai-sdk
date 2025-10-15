@@ -21,12 +21,7 @@ export interface HeliconeSettings {
   fetch?: typeof fetch;
 }
 
-export interface HeliconeProviderSettings extends HeliconeSettings {
-  /**
-   * Provider-specific API keys (e.g., OpenAI, Anthropic)
-   */
-  providerApiKeys?: Record<string, string>;
-}
+export interface HeliconeProviderSettings extends HeliconeSettings {}
 
 export interface HeliconeExtraBody {
   /**

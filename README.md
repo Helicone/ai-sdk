@@ -26,11 +26,7 @@ import { generateText } from 'ai';
 
 // Initialize the provider
 const gateway = helicone({
-  apiKey: 'your-helicone-api-key',
-  providerApiKeys: {
-    openai: 'your-openai-api-key',
-    anthropic: 'your-anthropic-api-key',
-  },
+  apiKey: 'your-helicone-api-key'
 });
 
 // Generate text using GPT-4o
@@ -51,13 +47,7 @@ import { helicone } from '@helicone/ai-sdk-provider';
 
 const gateway = helicone({
   apiKey: 'your-helicone-api-key', // Required for observability
-  baseURL: 'https://ai-gateway.helicone.ai', // Optional, defaults to Helicone's gateway
-  providerApiKeys: {
-    openai: 'sk-...',      // OpenAI API key
-    anthropic: 'sk-ant-...', // Anthropic API key
-    google: 'ya29-...',     // Google AI API key
-    groq: 'gsk-...',       // Groq API key
-  },
+  baseURL: 'https://ai-gateway.helicone.ai' // Optional, defaults to Helicone's gateway
 });
 ```
 

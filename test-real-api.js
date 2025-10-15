@@ -26,18 +26,15 @@ async function testRealAPI() {
     // Initialize the provider
     const provider = helicone({
       apiKey: process.env.HELICONE_API_KEY,
-      providerApiKeys: {
-        openai: process.env.OPENAI_API_KEY,
-      },
       extraBody: {
         helicone: {
           properties: {
             test: 'helicone-provider-test',
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
           },
-          tags: ['test', 'provider-validation'],
-        },
-      },
+          tags: ['test', 'provider-validation']
+        }
+      }
     });
 
     console.log('✅ Provider initialized with real API keys');

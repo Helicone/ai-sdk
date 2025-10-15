@@ -20,8 +20,7 @@ export class HeliconeProvider implements ProviderV2 {
       baseURL: config.baseURL ?? 'https://ai-gateway.helicone.ai',
       apiKey: config.apiKey,
       headers: config.headers,
-      fetch: config.fetch,
-      providerApiKeys: config.providerApiKeys,
+      fetch: config.fetch
     };
     this.defaultExtraBody = config.extraBody;
   }

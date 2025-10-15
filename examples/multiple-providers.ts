@@ -1,33 +1,30 @@
 import { helicone } from '@helicone/ai-sdk-provider';
 import { generateText } from 'ai';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 async function main() {
   const provider = helicone({
-    apiKey: process.env.HELICONE_API_KEY,
-    providerApiKeys: {
-      openai: process.env.OPENAI_API_KEY!,
-      anthropic: process.env.ANTHROPIC_API_KEY!,
-    },
+    apiKey: process.env.HELICONE_API_KEY
   });
 
   const prompt = 'Explain the concept of recursion in programming in simple terms.';
 
   console.log('Comparing responses from different providers...\n');
 
-  // OpenAI GPT-4o
-  console.log('=== OpenAI GPT-4o ===');
+  console.log('=== Novita DeepSeek v3.1 Terminus ===');
   const openaiResult = await generateText({
-    model: provider.languageModel('gpt-4o'),
+    model: provider.languageModel("deepseek-v3.1-terminus/novita"),
     prompt,
     maxOutputTokens: 150,
   });
   console.log(openaiResult.text);
   console.log(`Tokens: ${(openaiResult.usage.inputTokens ?? 0) + (openaiResult.usage.outputTokens ?? 0)}\n`);
 
-  // Anthropic Claude
-  console.log('=== Anthropic Claude 3.5 Haiku ===');
+  console.log('=== Anthropic Claude 4.5 Sonnet ===');
   const anthropicResult = await generateText({
-    model: provider.languageModel('claude-3.5-haiku'),
+    model: provider.languageModel("claude-4.5-sonnet/anthropic"),
     prompt,
     maxOutputTokens: 150,
   });
