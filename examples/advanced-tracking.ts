@@ -5,13 +5,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 async function main() {
-  const provider = helicone({
+  const gateway = helicone({
     apiKey: process.env.HELICONE_API_KEY
   });
 
   // Example of advanced tracking with session, user, and custom properties
   const result = await generateText({
-    model: provider.languageModel('gpt-4o', {
+    model: gateway.languageModel('gpt-4o', {
       extraBody: {
         helicone: {
           sessionId: 'demo-session-' + Date.now(),
