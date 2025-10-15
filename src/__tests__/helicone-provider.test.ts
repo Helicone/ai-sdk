@@ -337,4 +337,432 @@ describe('HeliconeProvider', () => {
       expect(requestBodies[2].model).toBe('deepseek-v3.1-terminus/novita');
     });
   });
+
+  describe('Helicone metadata headers', () => {
+    let mockFetch: jest.Mock;
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+      mockFetch = jest.fn();
+      global.fetch = mockFetch;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('should convert properties to Helicone-Property-* headers', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            properties: {
+              environment: 'development',
+              feature: 'code-explanation',
+              version: '1.0.0',
+              language: 'typescript'
+            }
+          }
+        }
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+
+      expect(headers['Helicone-Property-environment']).toBe('development');
+      expect(headers['Helicone-Property-feature']).toBe('code-explanation');
+      expect(headers['Helicone-Property-version']).toBe('1.0.0');
+      expect(headers['Helicone-Property-language']).toBe('typescript');
+    });
+
+    it('should convert sessionId to Helicone-Session-Id header', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            sessionId: 'demo-session-123456'
+          }
+        }
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+
+      expect(headers['Helicone-Session-Id']).toBe('demo-session-123456');
+    });
+
+    it('should convert userId to Helicone-User-Id header', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            userId: 'user-12345'
+          }
+        }
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+
+      expect(headers['Helicone-User-Id']).toBe('user-12345');
+    });
+
+    it('should convert tags to Helicone-Property-Tag-* headers', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            tags: ['demo', 'tutorial', 'programming']
+          }
+        }
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+
+      expect(headers['Helicone-Property-Tag-demo']).toBe('true');
+      expect(headers['Helicone-Property-Tag-tutorial']).toBe('true');
+      expect(headers['Helicone-Property-Tag-programming']).toBe('true');
+    });
+
+    it('should convert cache setting to Helicone-Cache-Enabled header', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            cache: true
+          }
+        }
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+
+      expect(headers['Helicone-Cache-Enabled']).toBe('true');
+    });
+
+    it('should convert all helicone metadata to headers simultaneously', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            sessionId: 'demo-session-123456',
+            userId: 'user-12345',
+            properties: {
+              environment: 'development',
+              feature: 'code-explanation',
+              version: '1.0.0'
+            },
+            tags: ['demo', 'tutorial'],
+            cache: true
+          }
+        }
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+
+      // Verify all metadata is in headers
+      expect(headers['Helicone-Session-Id']).toBe('demo-session-123456');
+      expect(headers['Helicone-User-Id']).toBe('user-12345');
+      expect(headers['Helicone-Property-environment']).toBe('development');
+      expect(headers['Helicone-Property-feature']).toBe('code-explanation');
+      expect(headers['Helicone-Property-version']).toBe('1.0.0');
+      expect(headers['Helicone-Property-Tag-demo']).toBe('true');
+      expect(headers['Helicone-Property-Tag-tutorial']).toBe('true');
+      expect(headers['Helicone-Cache-Enabled']).toBe('true');
+    });
+
+    it('should not include helicone object in request body', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            sessionId: 'demo-session-123456',
+            userId: 'user-12345',
+            properties: {
+              environment: 'development'
+            }
+          }
+        }
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const requestBody = JSON.parse(fetchCall[1].body);
+
+      // Verify helicone object is NOT in the body
+      expect(requestBody.helicone).toBeUndefined();
+    });
+
+    it('should preserve other extraBody fields in request body', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: 'Test response' },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30
+          }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            sessionId: 'demo-session-123456'
+          },
+          customField: 'customValue',
+          anotherField: 42
+        }
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const requestBody = JSON.parse(fetchCall[1].body);
+
+      // Verify helicone object is NOT in the body
+      expect(requestBody.helicone).toBeUndefined();
+
+      // Verify other extraBody fields ARE in the body
+      expect(requestBody.customField).toBe('customValue');
+      expect(requestBody.anotherField).toBe(42);
+    });
+
+    it('should handle helicone metadata in streaming mode', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      const mockStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}\n\n'));
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        body: mockStream
+      });
+
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            sessionId: 'stream-session-123',
+            properties: {
+              streamTest: 'true'
+            }
+          }
+        }
+      });
+
+      await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Stream test' }] }]
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+      const requestBody = JSON.parse(fetchCall[1].body);
+
+      // Verify metadata is in headers
+      expect(headers['Helicone-Session-Id']).toBe('stream-session-123');
+      expect(headers['Helicone-Property-streamTest']).toBe('true');
+
+      // Verify helicone object is NOT in the body
+      expect(requestBody.helicone).toBeUndefined();
+      expect(requestBody.stream).toBe(true);
+    });
+  });
 });

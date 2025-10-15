@@ -46,8 +46,7 @@ console.log(result.text);
 import { helicone } from '@helicone/ai-sdk-provider';
 
 const gateway = helicone({
-  apiKey: 'your-helicone-api-key', // Required for observability
-  baseURL: 'https://ai-gateway.helicone.ai' // Optional, defaults to Helicone's gateway
+  apiKey: 'your-helicone-api-key'
 });
 ```
 
