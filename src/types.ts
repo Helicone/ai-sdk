@@ -71,6 +71,7 @@ export interface HeliconeExtraBody {
       model: string;
     }>;
   };
+  [key: string]: any;
 }
 
 export interface HeliconeModelSettings {

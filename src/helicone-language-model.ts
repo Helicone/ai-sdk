@@ -39,11 +39,40 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
   private get headers(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...(this.settings.headers || {}),
+      ...(this.settings.headers || {})
     };
 
     if (this.settings.apiKey) {
       headers['Authorization'] = `Bearer ${this.settings.apiKey}`;
+    }
+
+    // Convert Helicone metadata from extraBody to headers
+    if (this.extraBody?.helicone) {
+      const helicone = this.extraBody.helicone;
+
+      if (helicone.sessionId) {
+        headers['Helicone-Session-Id'] = helicone.sessionId;
+      }
+
+      if (helicone.userId) {
+        headers['Helicone-User-Id'] = helicone.userId;
+      }
+
+      if (helicone.properties) {
+        Object.entries(helicone.properties).forEach(([key, value]) => {
+          headers[`Helicone-Property-${key}`] = String(value);
+        });
+      }
+
+      if (helicone.tags && helicone.tags.length > 0) {
+        helicone.tags.forEach((tag) => {
+          headers[`Helicone-Property-Tag-${tag}`] = 'true';
+        });
+      }
+
+      if (helicone.cache !== undefined) {
+        headers['Helicone-Cache-Enabled'] = String(helicone.cache);
+      }
     }
 
     return headers;
@@ -51,6 +80,9 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
   private buildRequestBody(options: LanguageModelV2CallOptions): any {
     const prompt = convertToHeliconePrompt(options.prompt);
+
+    // Extract helicone metadata and other extraBody fields
+    const { helicone, ...otherExtraBody } = this.extraBody || {};
 
     const body: any = {
       model: this.modelId,
@@ -64,7 +96,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       ...(options.presencePenalty != null && { presence_penalty: options.presencePenalty }),
       ...(options.stopSequences != null && { stop: options.stopSequences }),
       ...(options.seed != null && { seed: options.seed }),
-      ...this.extraBody,
+      ...otherExtraBody
     };
 
     if (options.toolChoice) {
