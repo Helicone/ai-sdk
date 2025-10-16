@@ -178,27 +178,43 @@ for await (const chunk of result.textStream) {
 
 ### Tool Calling
 
+Tool calling is supported by passing tool definitions directly in the request:
+
 ```typescript
-import { generateText, tool } from 'ai';
-import { z } from 'zod';
+import { generateText } from 'ai';
 
 const result = await generateText({
-  model: gateway.languageModel('gpt-4o'),
-  prompt: 'What is the weather like in San Francisco?',
-  tools: {
-    getWeather: tool({
-      description: 'Get weather for a location',
-      parameters: z.object({
-        location: z.string().describe('The city name'),
-      }),
-      execute: async ({ location }) => {
-        // Your weather API call here
-        return `It's sunny in ${location}`;
-      },
-    }),
-  },
+  model: gateway.languageModel('gpt-4o', {
+    extraBody: {
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'getWeather',
+            description: 'Get the current weather for a location',
+            parameters: {
+              type: 'object',
+              properties: {
+                location: {
+                  type: 'string',
+                  description: 'The city and state'
+                }
+              },
+              required: ['location']
+            }
+          }
+        }
+      ],
+      tool_choice: 'auto'
+    }
+  }),
+  prompt: 'What is the weather like in San Francisco?'
 });
+
+console.log(result.finishReason); // 'tool-calls' if tools were invoked
 ```
+
+See `examples/tool-calling.ts` for a complete example.
 
 ## Environment Variables
 

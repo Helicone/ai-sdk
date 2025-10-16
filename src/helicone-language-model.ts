@@ -4,6 +4,7 @@ import {
   LanguageModelV2FinishReason,
   LanguageModelV2StreamPart,
 } from '@ai-sdk/provider';
+import { asSchema } from '@ai-sdk/provider-utils';
 import { HeliconeSettings, HeliconeExtraBody } from './types';
 import { convertToHeliconePrompt } from './convert-to-helicone-prompt';
 import {
@@ -82,15 +83,38 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       }
     }
 
-    if (options.tools) {
-      body.tools = options.tools.map((tool: any) => ({
-        type: 'function',
-        function: {
-          name: tool.name || tool.toolName,
-          description: tool.description || '',
-          parameters: tool.inputSchema || tool.parameters || {},
-        },
-      }));
+    if (options.tools && options.tools.length > 0) {
+      body.tools = options.tools.map((tool: any) => {
+        let parameters: any = { type: 'object' };
+
+        // Convert input schema to JSON Schema
+        if (tool.inputSchema) {
+          // Try to access jsonSchema getter if it exists as the AI SDK may provide it
+          let schema = tool.inputSchema;
+          if (schema && typeof schema.jsonSchema !== 'undefined') {
+            schema = schema.jsonSchema;
+          }
+
+          parameters = {
+            type: 'object',
+            ...schema
+          };
+        } else if (tool.parameters) {
+          parameters = {
+            type: 'object',
+            ...tool.parameters
+          };
+        }
+
+        return {
+          type: 'function',
+          function: {
+            name: tool.name || tool.toolName,
+            description: tool.description || '',
+            parameters
+          }
+        };
+      });
     }
 
     return body;
