@@ -144,16 +144,20 @@ const result = await generateText({
     getWeather: tool({
       description: 'Get weather for a location',
       parameters: z.object({
-        location: z.string().describe('The city name'),
+        location: z.string().describe('The city name')
       }),
-      execute: async ({ location }) => {
+      execute: async (args) => {
         // Your weather API call here
-        return `It's sunny in ${location}`;
-      },
-    }),
-  },
+        return `It's sunny in ${args.location}`;
+      }
+    })
+  }
 });
+
+console.log(result.text);
 ```
+
+See `examples/tool-calling.ts` for a complete example.
 
 ## BYOK - Bring your own key
 

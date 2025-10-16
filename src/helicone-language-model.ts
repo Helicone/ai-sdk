@@ -4,6 +4,7 @@ import {
   LanguageModelV2FinishReason,
   LanguageModelV2StreamPart,
 } from '@ai-sdk/provider';
+import { asSchema } from '@ai-sdk/provider-utils';
 import { HeliconeSettings, HeliconeExtraBody } from './types';
 import { convertToHeliconePrompt } from './convert-to-helicone-prompt';
 import {
@@ -114,15 +115,44 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       }
     }
 
-    if (options.tools) {
-      body.tools = options.tools.map((tool: any) => ({
-        type: 'function',
-        function: {
-          name: tool.name || tool.toolName,
-          description: tool.description || '',
-          parameters: tool.inputSchema || tool.parameters || {},
-        },
-      }));
+    if (options.tools && options.tools.length > 0) {
+      body.tools = options.tools.map((tool: any) => {
+        let parameters: any = { type: 'object' };
+
+        // The AI SDK transforms tools before passing them to providers
+        // Try to get proper JSON Schema from the tool
+        if (tool.parameters) {
+          // If we have the original parameters (Zod schema), convert it
+          try {
+            const schema = asSchema(tool.parameters);
+            parameters = schema.jsonSchema;
+          } catch (e) {
+            // If asSchema fails, try to use as-is
+            parameters = typeof tool.parameters === 'object' ? tool.parameters : { type: 'object' };
+          }
+        } else if (tool.inputSchema) {
+          // AI SDK may have already converted to inputSchema
+          // Try to access jsonSchema property if it exists
+          if (tool.inputSchema.jsonSchema) {
+            parameters = tool.inputSchema.jsonSchema;
+          } else if (typeof tool.inputSchema === 'object') {
+            // Ensure we have type: object at minimum
+            parameters = {
+              type: 'object',
+              ...tool.inputSchema
+            };
+          }
+        }
+
+        return {
+          type: 'function',
+          function: {
+            name: tool.name || tool.toolName,
+            description: tool.description || '',
+            parameters
+          }
+        };
+      });
     }
 
     return body;
