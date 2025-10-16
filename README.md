@@ -53,17 +53,16 @@ const gateway = helicone({
 
 ### Model Selection
 
-Specify models by wname only. Helicone's AI gateway will automatically route to the appropriate provider:
+Specify models by name only when making the request. For the complete list of supported model names, visit [helicone.ai/models](https://helicone.ai/models).
+
+Helicone's AI gateway will automatically route to the appropriate provider:
 
 ```typescript
-// OpenAI models
 gateway.languageModel('gpt-4o')
 gateway.languageModel('claude-4.5-sonnet')
 gateway.languageModel('gemini-2.5-pro')
 gateway.languageModel('grok-4')
 ```
-
-For the complete list of supported model names, visit [helicone.ai/models](https://helicone.ai/models).
 
 If you'd like to select your own provider, you can do so by passing the provider name as the second argument:
 
