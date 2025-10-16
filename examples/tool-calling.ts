@@ -1,6 +1,7 @@
 import { helicone } from '@helicone/ai-sdk-provider';
-import { generateText } from 'ai';
+import { generateText, tool } from 'ai';
 import dotenv from 'dotenv';
+import { z } from 'zod';
 
 dotenv.config();
 
@@ -11,8 +12,6 @@ async function main() {
 
   console.log('Testing tool calling with Helicone...\n');
 
-  // Note: Due to a current limitation in AI SDK v5's schema conversion,
-  // we pass tools directly in the extraBody to ensure proper JSON Schema format
   const result = await generateText({
     model: gateway.languageModel('gpt-4o-mini', {
       extraBody: {
@@ -23,75 +22,46 @@ async function main() {
             feature: 'function-tools'
           },
           tags: ['tools', 'demo']
-        },
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'getWeather',
-              description: 'Get the current weather for a location',
-              parameters: {
-                type: 'object',
-                properties: {
-                  location: {
-                    type: 'string',
-                    description: 'The city and state, e.g. San Francisco, CA'
-                  },
-                  unit: {
-                    type: 'string',
-                    enum: ['celsius', 'fahrenheit'],
-                    description: 'Temperature unit'
-                  }
-                },
-                required: ['location']
-              }
-            }
-          },
-          {
-            type: 'function',
-            function: {
-              name: 'calculate',
-              description: 'Perform a mathematical calculation',
-              parameters: {
-                type: 'object',
-                properties: {
-                  operation: {
-                    type: 'string',
-                    enum: ['add', 'subtract', 'multiply', 'divide'],
-                    description: 'The mathematical operation to perform'
-                  },
-                  a: {
-                    type: 'number',
-                    description: 'First number'
-                  },
-                  b: {
-                    type: 'number',
-                    description: 'Second number'
-                  }
-                },
-                required: ['operation', 'a', 'b']
-              }
-            }
-          }
-        ],
-        tool_choice: 'auto'
+        }
       }
     }),
-    prompt: 'What is the weather like in San Francisco? Also, what is 42 multiplied by 17?'
+    prompt: 'What is the weather like in San Francisco? Also, what is 42 multiplied by 17?',
+    tools: {
+      getWeather: tool({
+        description: 'Get the current weather for a location',
+        parameters: z.object({
+          location: z.string().describe('The city and state, e.g. San Francisco, CA'),
+          unit: z.enum(['celsius', 'fahrenheit']).optional().describe('Temperature unit')
+        })
+      } as any),
+      calculate: tool({
+        description: 'Perform a mathematical calculation',
+        parameters: z.object({
+          operation: z.enum(['add', 'subtract', 'multiply', 'divide']).describe('The mathematical operation to perform'),
+          a: z.number().describe('First number'),
+          b: z.number().describe('Second number')
+        })
+      } as any)
+    },
+    maxRetries: 5
   });
 
-  console.log('=== Response ===');
-  console.log(result.text || '(Tool calls were made - check Helicone dashboard for details)');
+  console.log('\n=== Response ===');
+  console.log(result.text || '(Model requested tool calls)');
 
   console.log('\n=== Request Info ===');
-  console.log(`Total tokens used: ${result.usage.totalTokens}`);
+  console.log(`Total tokens: ${result.usage.totalTokens}`);
   console.log(`Finish reason: ${result.finishReason}`);
 
-  console.log('\n✓ Tool calling request sent successfully!');
-  console.log('Check your Helicone dashboard to see:');
-  console.log('  - Tool definitions that were sent');
-  console.log('  - Any tool calls made by the model');
-  console.log('  - Session tracking with custom properties and tags');
+  if (result.finishReason === 'tool-calls') {
+    console.log('\n✓ Tool calling works! The model requested to use the defined tools.');
+    console.log('Check your Helicone dashboard to see:');
+    console.log('  - Tool definitions sent to the API');
+    console.log('  - Tool calls requested by the model');
+    console.log('  - Session tracking with custom properties and tags');
+  } else {
+    console.log('\n✓ Request completed successfully!');
+  }
 }
 
 main().catch(console.error);

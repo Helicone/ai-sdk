@@ -119,23 +119,29 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       body.tools = options.tools.map((tool: any) => {
         let parameters: any = { type: 'object' };
 
-        // Convert input schema to JSON Schema
-        if (tool.inputSchema) {
-          // Try to access jsonSchema getter if it exists as the AI SDK may provide it
-          let schema = tool.inputSchema;
-          if (schema && typeof schema.jsonSchema !== 'undefined') {
-            schema = schema.jsonSchema;
+        // The AI SDK transforms tools before passing them to providers
+        // Try to get proper JSON Schema from the tool
+        if (tool.parameters) {
+          // If we have the original parameters (Zod schema), convert it
+          try {
+            const schema = asSchema(tool.parameters);
+            parameters = schema.jsonSchema;
+          } catch (e) {
+            // If asSchema fails, try to use as-is
+            parameters = typeof tool.parameters === 'object' ? tool.parameters : { type: 'object' };
           }
-
-          parameters = {
-            type: 'object',
-            ...schema
-          };
-        } else if (tool.parameters) {
-          parameters = {
-            type: 'object',
-            ...tool.parameters
-          };
+        } else if (tool.inputSchema) {
+          // AI SDK may have already converted to inputSchema
+          // Try to access jsonSchema property if it exists
+          if (tool.inputSchema.jsonSchema) {
+            parameters = tool.inputSchema.jsonSchema;
+          } else if (typeof tool.inputSchema === 'object') {
+            // Ensure we have type: object at minimum
+            parameters = {
+              type: 'object',
+              ...tool.inputSchema
+            };
+          }
         }
 
         return {
