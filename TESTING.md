@@ -113,8 +113,7 @@ OPENAI_MODEL=gpt-3.5-turbo node test-real-api.js
 ANTHROPIC_API_KEY=your-key node -e "
 const { helicone } = require('./dist');
 const provider = helicone({
-  apiKey: process.env.HELICONE_API_KEY,
-  providerApiKeys: { anthropic: process.env.ANTHROPIC_API_KEY }
+  apiKey: process.env.HELICONE_API_KEY
 });
 console.log('Anthropic model:', provider.languageModel('anthropic/claude-3-haiku'));
 "

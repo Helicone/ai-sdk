@@ -1,17 +1,17 @@
 import { helicone } from '@helicone/ai-sdk-provider';
 import { generateText } from 'ai';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 async function main() {
-  const provider = helicone({
-    apiKey: process.env.HELICONE_API_KEY,
-    providerApiKeys: {
-      openai: process.env.OPENAI_API_KEY!,
-    },
+  const gateway = helicone({
+    apiKey: process.env.HELICONE_API_KEY
   });
 
   // Example of advanced tracking with session, user, and custom properties
   const result = await generateText({
-    model: provider.languageModel('gpt-4o', {
+    model: gateway.languageModel('gpt-4o', {
       extraBody: {
         helicone: {
           sessionId: 'demo-session-' + Date.now(),
@@ -33,13 +33,6 @@ async function main() {
 
   console.log('Generated explanation:');
   console.log(result.text);
-
-  console.log('\nRequest metadata:');
-  console.log('- Session ID: demo-session-' + Date.now());
-  console.log('- User ID: user-12345');
-  console.log('- Tags: demo, tutorial, programming');
-  console.log('- Caching: enabled');
-  console.log('- Custom properties: environment, feature, version, language');
 }
 
 main().catch(console.error);

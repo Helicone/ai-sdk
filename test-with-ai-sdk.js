@@ -24,10 +24,7 @@ async function testWithAISDK() {
     }
 
     const provider = helicone({
-      apiKey: process.env.HELICONE_API_KEY,
-      providerApiKeys: {
-        openai: process.env.OPENAI_API_KEY,
-      },
+      apiKey: process.env.HELICONE_API_KEY
     });
 
     // Test 1: Generate Text
