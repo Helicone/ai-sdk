@@ -70,6 +70,7 @@ export interface HeliconeExtraBody {
       provider: string;
       model: string;
     }>;
+
   };
   [key: string]: any;
 }

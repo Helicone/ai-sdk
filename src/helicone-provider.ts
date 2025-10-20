@@ -28,6 +28,9 @@ export class HeliconeProvider implements ProviderV2 {
   languageModel(
     modelId: string,
     settings?: {
+      promptId?: string;
+      inputs?: Record<string, any>;
+      environment?: string;
       extraBody?: HeliconeExtraBody;
       apiKey?: string;
     }
@@ -38,16 +41,29 @@ export class HeliconeProvider implements ProviderV2 {
     // We only pass through the headers from the main settings
     const headers = { ...this.settings.headers };
 
+    // Build extraBody with prompt parameters if provided
+    let extraBody = {
+      ...this.defaultExtraBody,
+      ...settings?.extraBody,
+    };
+
+    // Add prompt parameters to top level of extraBody if using prompts
+    if (settings?.promptId) {
+      extraBody = {
+        ...extraBody,
+        prompt_id: settings.promptId,
+        ...(settings.inputs && { inputs: settings.inputs }),
+        ...(settings.environment && { environment: settings.environment }),
+      };
+    }
+
     return new HeliconeLanguageModel({
       modelId,
       settings: {
         ...this.settings,
         headers,
       },
-      extraBody: {
-        ...this.defaultExtraBody,
-        ...settings?.extraBody,
-      },
+      extraBody,
     });
   }
 
