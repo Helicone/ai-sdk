@@ -8,5 +8,7 @@ export type {
   HeliconeExtraBody,
   HeliconeModelSettings,
   HeliconeProvider as HeliconeProviderType,
-  HeliconeModelConfig,
+  HeliconeModelConfig
 } from './types';
+
+export type { WithHeliconePrompt } from './helpers';

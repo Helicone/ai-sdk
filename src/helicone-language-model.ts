@@ -80,14 +80,11 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
   }
 
   private buildRequestBody(options: LanguageModelV2CallOptions): any {
-    const prompt = convertToHeliconePrompt(options.prompt);
-
     // Extract helicone metadata and other extraBody fields
-    const { helicone, ...otherExtraBody } = this.extraBody || {};
+    const { helicone, prompt_id, inputs, environment, ...otherExtraBody } = this.extraBody || {};
 
     const body: any = {
       model: this.modelId,
-      messages: prompt,
       stream: false,
       ...(options.temperature != null && { temperature: options.temperature }),
       ...(options.maxOutputTokens != null && { max_tokens: options.maxOutputTokens }),
@@ -99,6 +96,23 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       ...(options.seed != null && { seed: options.seed }),
       ...otherExtraBody
     };
+
+    // Handle Helicone prompt integration
+    if (prompt_id) {
+      // Use Helicone prompt integration - replace messages with prompt_id and inputs
+      body.prompt_id = prompt_id;
+      if (environment) {
+        body.environment = environment;
+      }
+      if (inputs) {
+        body.inputs = inputs;
+      }
+      // Don't include messages when using promptId
+    } else if (options.prompt && options.prompt.length > 0) {
+      // Use regular messages format only if we have a prompt
+      const prompt = convertToHeliconePrompt(options.prompt);
+      body.messages = prompt;
+    }
 
     if (options.toolChoice) {
       if (options.toolChoice.type === 'auto') {

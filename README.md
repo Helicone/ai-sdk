@@ -75,6 +75,45 @@ gateway.languageModel('grok-4/xai');
 
 ## Advanced Features
 
+### Helicone Prompts Integration
+
+Use prompts created in your [Helicone dashboard](https://helicone.ai/prompts) instead of hardcoding messages in your application.
+
+```typescript
+import { helicone } from '@helicone/ai-sdk-provider';
+import type { WithHeliconePrompt } from '@helicone/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: gateway.languageModel('gpt-4o', {
+    promptId: 'sg45wqc' // Get this from your Helicone dashboard after saving your prompt,
+    inputs: {
+      customer_name: 'Sarah Johnson',
+      issue_type: 'billing',
+      account_type: 'premium'
+    },
+    environment: 'production', // optional, defaults to 'production'
+    extraBody: {
+      helicone: {
+        sessionId: 'support-session-123',
+        properties: {
+          department: 'customer-support'
+        }
+      }
+    }
+  }),
+  messages: [{ role: 'user', content: 'placeholder' }] // Required by AI SDK, ignored when using promptId
+} as WithHeliconePrompt);
+```
+
+> **Note:** When using `promptId`, you must still pass a placeholder `messages` array to satisfy the Vercel AI SDK's validation. The actual prompt content will be fetched from your Helicone dashboard, and the placeholder messages will be ignored.
+
+**Benefits of using Helicone prompts:**
+- 🎯 **Centralized Management**: Update prompts without code changes
+- 🚀 **Lower Latency**: Single API call, no message construction overhead
+- 🔧 **A/B Testing**: Test different prompt versions with environments
+- 📊 **Better Analytics**: Track prompt performance across versions
+
 ### Session Tracking
 
 ```typescript
@@ -157,6 +196,54 @@ console.log(result.text);
 ```
 
 See `examples/tool-calling.ts` for a complete example.
+
+### Prompt Environments
+
+Use different prompt versions for different environments:
+
+```typescript
+// Development environment
+const devResult = await generateText({
+  model: gateway.languageModel('gpt-4o', {
+    promptId: 'adsfo87yu', // Get this from your Helicone dashboard after saving your prompt
+    inputs: { user_name: 'Alex' },
+    environment: 'development'
+  }),
+  messages: [{ role: 'user', content: 'placeholder' }]
+});
+
+// Production environment
+const prodResult = await generateText({
+  model: gateway.languageModel('gpt-4o', {
+    promptId: '32q5wre', // Get this from your Helicone dashboard after saving your prompt
+    inputs: { user_name: 'Alex' },
+    environment: 'production' // or omit for default
+  }),
+  messages: [{ role: 'user', content: 'placeholder' }]
+});
+```
+
+### Combining Prompts with Streaming
+
+```typescript
+const result = await streamText({
+  model: gateway.languageModel('gpt-4o', {
+    promptId: 'asdfa67',
+    inputs: {
+      topic: 'artificial intelligence',
+      tone: 'professional',
+      length: 'medium'
+    }
+  }),
+  messages: [{ role: 'user', content: 'placeholder' }]
+});
+
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
+```
+
+See `examples/prompts.ts` for comprehensive prompt integration examples.
 
 ## BYOK - Bring your own key
 
