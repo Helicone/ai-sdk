@@ -1,11 +1,11 @@
-import { helicone } from '@helicone/ai-sdk-provider';
+import { createHelicone } from '@helicone/ai-sdk-provider';
 import { generateText } from 'ai';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 async function main() {
-  const gateway = helicone({
+  const helicone = createHelicone({
     apiKey: process.env.HELICONE_API_KEY
   });
 
@@ -15,7 +15,7 @@ async function main() {
 
   console.log('=== Novita DeepSeek v3.1 Terminus ===');
   const openaiResult = await generateText({
-    model: gateway.languageModel("deepseek-v3.1-terminus/novita"),
+    model: helicone("deepseek-v3.1-terminus/novita"),
     prompt,
     maxOutputTokens: 150,
   });
@@ -24,7 +24,7 @@ async function main() {
 
   console.log('=== Anthropic Claude 4.5 Sonnet ===');
   const anthropicResult = await generateText({
-    model: gateway.languageModel("claude-4.5-sonnet/anthropic"),
+    model: helicone("claude-4.5-sonnet/anthropic"),
     prompt,
     maxOutputTokens: 150,
   });

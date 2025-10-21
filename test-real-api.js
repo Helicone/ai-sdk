@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Real API test - requires actual API keys
-import { helicone } from './dist/index.js';
+import { createHelicone } from './dist/index.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -24,7 +24,7 @@ async function testRealAPI() {
 
   try {
     // Initialize the provider
-    const provider = helicone({
+    const helicone = createHelicone({
       apiKey: process.env.HELICONE_API_KEY,
       extraBody: {
         helicone: {
@@ -40,7 +40,7 @@ async function testRealAPI() {
     console.log('✅ Provider initialized with real API keys');
 
     // Test with a simple generation
-    const model = provider.languageModel('openai/gpt-3.5-turbo');
+    const model = helicone('openai/gpt-3.5-turbo');
 
     // Mock the generateText function since we don't have 'ai' package in dependencies
     // In real usage, you would import this from 'ai'

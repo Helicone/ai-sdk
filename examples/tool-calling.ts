@@ -1,4 +1,4 @@
-import { helicone } from '@helicone/ai-sdk-provider';
+import { createHelicone } from '@helicone/ai-sdk-provider';
 import { generateText, tool } from 'ai';
 import dotenv from 'dotenv';
 import { z } from 'zod';
@@ -6,14 +6,14 @@ import { z } from 'zod';
 dotenv.config();
 
 async function main() {
-  const gateway = helicone({
+  const helicone = createHelicone({
     apiKey: process.env.HELICONE_API_KEY
   });
 
   console.log('Testing tool calling with Helicone...\n');
 
   const result = await generateText({
-    model: gateway.languageModel('gpt-4o-mini', {
+    model: helicone('gpt-4o-mini', {
       extraBody: {
         helicone: {
           sessionId: 'tool-calling-demo-' + Date.now(),

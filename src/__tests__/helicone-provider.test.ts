@@ -47,18 +47,28 @@ describe('HeliconeProvider', () => {
   });
 
   describe('createHelicone factory function', () => {
-    it('should create HeliconeProvider instance', () => {
-      const provider = createHelicone();
-      expect(provider).toBeInstanceOf(HeliconeProvider);
+    it('should create helicone model function', () => {
+      const helicone = createHelicone();
+      expect(typeof helicone).toBe('function');
     });
 
-    it('should pass config to provider', () => {
+    it('should pass config to underlying provider', () => {
       const config = {
         apiKey: 'test-key',
         baseURL: 'https://test.helicone.ai',
       };
-      const provider = createHelicone(config);
-      expect(provider).toBeInstanceOf(HeliconeProvider);
+      const helicone = createHelicone(config);
+      expect(typeof helicone).toBe('function');
+    });
+
+    it('should create language model when called with model ID', () => {
+      const helicone = createHelicone();
+      const model = helicone('gpt-4o');
+
+      expect(model).toBeInstanceOf(HeliconeLanguageModel);
+      expect(model.specificationVersion).toBe('v2');
+      expect(model.provider).toBe('helicone');
+      expect(model.modelId).toBe('gpt-4o');
     });
   });
 

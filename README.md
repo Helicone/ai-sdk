@@ -22,17 +22,17 @@ npm install @helicone/ai-sdk-provider ai
 ## Quick Start
 
 ```typescript
-import { helicone } from '@helicone/ai-sdk-provider';
+import { createHelicone } from '@helicone/ai-sdk-provider';
 import { generateText } from 'ai';
 
 // Initialize the provider
-const gateway = helicone({
+const helicone = createHelicone({
   apiKey: 'your-helicone-api-key'
 });
 
 // Generate text using GPT-4o
 const result = await generateText({
-  model: gateway.languageModel('gpt-4o'),
+  model: helicone('gpt-4o'),
   prompt: 'Write a haiku about AI',
 });
 
@@ -44,9 +44,9 @@ console.log(result.text);
 ### Basic Setup
 
 ```typescript
-import { helicone } from '@helicone/ai-sdk-provider';
+import { createHelicone } from '@helicone/ai-sdk-provider';
 
-const gateway = helicone({
+const helicone = createHelicone({
   apiKey: 'your-helicone-api-key'
 });
 ```
@@ -55,22 +55,26 @@ const gateway = helicone({
 
 Specify models by name only when making the request. For the complete list of supported model names, visit [helicone.ai/models](https://helicone.ai/models).
 
-Helicone's AI gateway will automatically route to the appropriate provider:
+Helicone's AI gateway will automatically route to the cheapest provider:
 
 ```typescript
-gateway.languageModel('gpt-4o')
-gateway.languageModel('claude-4.5-sonnet')
-gateway.languageModel('gemini-2.5-pro')
-gateway.languageModel('grok-4')
+const result = await generateText({
+  model: helicone('gpt-4o'),
+  prompt: 'Write a haiku about AI'
+});
+
+console.log(result.text);
 ```
 
 If you'd like to select your own provider, you can do so by passing the provider name as the second argument:
 
 ```typescript
-gateway.languageModel('gpt-4o/openai');
-gateway.languageModel('claude-4.5-sonnet/anthropic');
-gateway.languageModel('gemini-2.5-pro/google');
-gateway.languageModel('grok-4/xai');
+const result = await generateText({
+  helicone('claude-4.5-sonnet/anthropic');
+  prompt: 'Write a haiku about AI'
+});
+
+console.log(result.text);
 ```
 
 ## Advanced Features
@@ -80,12 +84,14 @@ gateway.languageModel('grok-4/xai');
 Use prompts created in your [Helicone dashboard](https://helicone.ai/prompts) instead of hardcoding messages in your application.
 
 ```typescript
-import { helicone } from '@helicone/ai-sdk-provider';
+import { createHelicone } from '@helicone/ai-sdk-provider';
 import type { WithHeliconePrompt } from '@helicone/ai-sdk-provider';
 import { generateText } from 'ai';
 
+const helicone = createHelicone({ apiKey: 'your-helicone-api-key' });
+
 const result = await generateText({
-  model: gateway.languageModel('gpt-4o', {
+  model: helicone('gpt-4o', {
     promptId: 'sg45wqc' // Get this from your Helicone dashboard after saving your prompt,
     inputs: {
       customer_name: 'Sarah Johnson',
@@ -110,6 +116,7 @@ const result = await generateText({
 
 **Benefits of using Helicone prompts:**
 - 🎯 **Centralized Management**: Update prompts without code changes
+- 👩🏻‍💻 **Perfect for non-technical users**: No need to write code to create prompts, just use the Helicone dashboard.
 - 🚀 **Lower Latency**: Single API call, no message construction overhead
 - 🔧 **A/B Testing**: Test different prompt versions with environments
 - 📊 **Better Analytics**: Track prompt performance across versions
@@ -118,7 +125,7 @@ const result = await generateText({
 
 ```typescript
 const result = await generateText({
-  model: gateway.languageModel('gpt-4o', {
+  model: helicone('gpt-4o', {
     extraBody: {
       helicone: {
         sessionId: 'user-chat-session-123',
@@ -138,7 +145,7 @@ const result = await generateText({
 
 ```typescript
 const result = await generateText({
-  model: gateway.languageModel('gpt-4o', {
+  model: helicone('gpt-4o', {
     extraBody: {
       helicone: {
         tags: ['customer-support', 'urgent'],
@@ -160,7 +167,7 @@ const result = await generateText({
 import { streamText } from 'ai';
 
 const result = await streamText({
-  model: gateway.languageModel('gpt-4o'),
+  model: helicone('gpt-4o'),
   prompt: 'Write a long story about space exploration',
 });
 
@@ -176,7 +183,7 @@ import { generateText, tool } from 'ai';
 import { z } from 'zod';
 
 const result = await generateText({
-  model: gateway.languageModel('gpt-4o'),
+  model: helicone('gpt-4o'),
   prompt: 'What is the weather like in San Francisco?',
   tools: {
     getWeather: tool({
@@ -204,7 +211,7 @@ Use different prompt versions for different environments:
 ```typescript
 // Development environment
 const devResult = await generateText({
-  model: gateway.languageModel('gpt-4o', {
+  model: helicone('gpt-4o', {
     promptId: 'adsfo87yu', // Get this from your Helicone dashboard after saving your prompt
     inputs: { user_name: 'Alex' },
     environment: 'development'
@@ -214,7 +221,7 @@ const devResult = await generateText({
 
 // Production environment
 const prodResult = await generateText({
-  model: gateway.languageModel('gpt-4o', {
+  model: helicone('gpt-4o', {
     promptId: '32q5wre', // Get this from your Helicone dashboard after saving your prompt
     inputs: { user_name: 'Alex' },
     environment: 'production' // or omit for default
@@ -227,7 +234,7 @@ const prodResult = await generateText({
 
 ```typescript
 const result = await streamText({
-  model: gateway.languageModel('gpt-4o', {
+  model: helicone('gpt-4o', {
     promptId: 'asdfa67',
     inputs: {
       topic: 'artificial intelligence',
