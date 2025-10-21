@@ -111,11 +111,11 @@ OPENAI_MODEL=gpt-3.5-turbo node test-real-api.js
 
 # Test with Anthropic (requires ANTHROPIC_API_KEY)
 ANTHROPIC_API_KEY=your-key node -e "
-const { helicone } = require('./dist');
-const provider = helicone({
+const { createHelicone } = require('./dist');
+const helicone = createHelicone({
   apiKey: process.env.HELICONE_API_KEY
 });
-console.log('Anthropic model:', provider.languageModel('anthropic/claude-3-haiku'));
+console.log('Anthropic model:', helicone('anthropic/claude-3-haiku'));
 "
 ```
 
@@ -124,8 +124,8 @@ console.log('Anthropic model:', provider.languageModel('anthropic/claude-3-haiku
 ```bash
 # Test with session tracking
 node -e "
-const { helicone } = require('./dist');
-const provider = helicone({
+const { createHelicone } = require('./dist');
+const helicone = createHelicone({
   apiKey: 'test',
   extraBody: {
     helicone: {
@@ -145,9 +145,10 @@ console.log('✅ Helicone metadata configuration works');
 ```bash
 # Test invalid model format
 node -e "
-const { helicone } = require('./dist');
+const { createHelicone } = require('./dist');
 try {
-  helicone().languageModel('invalid-format');
+  const helicone = createHelicone();
+  helicone('invalid-format');
 } catch (e) {
   console.log('✅ Error handling works:', e.message);
 }
@@ -155,8 +156,9 @@ try {
 
 # Test missing API keys (will fail as expected)
 node -e "
-const { helicone } = require('./dist');
-helicone().languageModel('openai/gpt-4').doGenerate({
+const { createHelicone } = require('./dist');
+const helicone = createHelicone();
+helicone('openai/gpt-4').doGenerate({
   prompt: [{ role: 'user', content: [{ type: 'text', text: 'test' }] }]
 }).catch(e => console.log('✅ Auth error handled:', e.message));
 "

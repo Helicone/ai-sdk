@@ -1,4 +1,4 @@
-import { helicone } from '@helicone/ai-sdk-provider';
+import { createHelicone } from '@helicone/ai-sdk-provider';
 import { generateText } from 'ai';
 import dotenv from 'dotenv';
 
@@ -6,12 +6,12 @@ dotenv.config();
 
 async function main() {
   // Initialize the Helicone provider
-  const gateway = helicone({
+  const helicone = createHelicone({
     apiKey: process.env.HELICONE_API_KEY!
   });
 
   const result = await generateText({
-    model: gateway.languageModel("claude-3.7-sonnet"),
+    model: helicone("claude-3.7-sonnet"),
     prompt: "Write a haiku about artificial intelligence",
   });
 

@@ -1,18 +1,18 @@
-import { helicone } from '@helicone/ai-sdk-provider';
+import { createHelicone } from '@helicone/ai-sdk-provider';
 import { streamText } from 'ai';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 async function main() {
-  const gateway = helicone({
+  const helicone = createHelicone({
     apiKey: process.env.HELICONE_API_KEY
   });
 
   console.log('Streaming response...\n');
 
   const result = await streamText({
-    model: gateway.languageModel('gpt-4o-mini'),
+    model: helicone('gpt-4o-mini'),
     prompt: 'Write a short story about a robot learning to paint',
     maxOutputTokens: 300,
   });

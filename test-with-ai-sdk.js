@@ -13,7 +13,7 @@ async function testWithAISDK() {
       process.exit(1);
     });
 
-    const { helicone } = require('./dist/index.js');
+    const { createHelicone } = await import('./dist/index.js');
 
     // Check for API keys
     if (!process.env.HELICONE_API_KEY || !process.env.OPENAI_API_KEY) {
@@ -23,14 +23,14 @@ async function testWithAISDK() {
       process.exit(1);
     }
 
-    const provider = helicone({
+    const helicone = createHelicone({
       apiKey: process.env.HELICONE_API_KEY
     });
 
     // Test 1: Generate Text
     console.log('📝 Test 1: Generate Text');
     const result = await generateText({
-      model: provider.languageModel('openai/gpt-3.5-turbo'),
+      model: helicone('openai/gpt-3.5-turbo'),
       prompt: 'Write a haiku about TypeScript',
       maxTokens: 100,
     });
@@ -42,7 +42,7 @@ async function testWithAISDK() {
     // Test 2: Streaming
     console.log('\n🌊 Test 2: Streaming Text');
     const stream = await streamText({
-      model: provider.languageModel('openai/gpt-3.5-turbo'),
+      model: helicone('openai/gpt-3.5-turbo'),
       prompt: 'Count from 1 to 5 slowly',
       maxTokens: 50,
     });
@@ -60,7 +60,7 @@ async function testWithAISDK() {
     // Test 3: With Helicone metadata
     console.log('\n🏷️  Test 3: With Helicone Metadata');
     const resultWithMeta = await generateText({
-      model: provider.languageModel('openai/gpt-3.5-turbo', {
+      model: helicone('openai/gpt-3.5-turbo', {
         extraBody: {
           helicone: {
             sessionId: 'test-session-' + Date.now(),

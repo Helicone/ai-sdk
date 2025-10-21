@@ -1,45 +1,31 @@
 #!/usr/bin/env node
 
 // Manual test script to verify the Helicone provider works
-const { helicone } = require('./dist/index.js');
+import { createHelicone } from './dist/index.js';
 
 console.log('🧪 Testing Helicone Provider...\n');
 
 // Test 1: Provider Creation
 try {
-  const provider = helicone({
+  const helicone = createHelicone({
     apiKey: process.env.HELICONE_API_KEY || 'test-key'
   });
 
-  console.log('✅ Provider created successfully');
-  console.log('   Specification version:', provider.specificationVersion);
+  console.log('✅ Provider function created successfully');
+  console.log('   Type:', typeof helicone);
 
   // Test 2: Language Model Creation
-  const model = provider.languageModel('openai/gpt-4');
+  const model = helicone('openai/gpt-4');
   console.log('✅ Language model created successfully');
   console.log('   Model ID:', model.modelId);
   console.log('   Provider:', model.provider);
   console.log('   Specification version:', model.specificationVersion);
 
-  // Test 3: Error Handling
-  try {
-    provider.languageModel('invalid-format');
-  } catch (error) {
-    console.log('✅ Error handling works:', error.message);
-  }
-
-  // Test 4: Provider Methods (should throw errors as expected)
-  try {
-    provider.textEmbeddingModel('test');
-  } catch (error) {
-    console.log('✅ textEmbeddingModel throws expected error:', error.message);
-  }
-
-  try {
-    provider.imageModel('test');
-  } catch (error) {
-    console.log('✅ imageModel throws expected error:', error.message);
-  }
+  // Test 3: Different Model Creation
+  const model2 = helicone('claude-3.5-sonnet');
+  console.log('✅ Second model created successfully');
+  console.log('   Model ID:', model2.modelId);
+  console.log('   Provider:', model2.provider);
 
   console.log('\n🎉 All basic tests passed! The provider is working correctly.');
   console.log('\n💡 To test with real API calls, set these environment variables:');

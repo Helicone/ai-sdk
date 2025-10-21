@@ -1,17 +1,17 @@
-import { helicone } from '@helicone/ai-sdk-provider';
+import { createHelicone } from '@helicone/ai-sdk-provider';
 import { generateText } from 'ai';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 async function main() {
-  const gateway = helicone({
+  const helicone = createHelicone({
     apiKey: process.env.HELICONE_API_KEY
   });
 
   // Example of advanced tracking with session, user, and custom properties
   const result = await generateText({
-    model: gateway.languageModel('gpt-4o', {
+    model: helicone('gpt-4o', {
       extraBody: {
         helicone: {
           sessionId: 'demo-session-' + Date.now(),

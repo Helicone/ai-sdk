@@ -10,11 +10,11 @@
  */
 
 import 'dotenv/config';
-import { helicone } from '../src';
+import { createHelicone } from '../src';
 import type { WithHeliconePrompt } from '../src';
 import { generateText, streamText } from 'ai';
 
-const gateway = helicone({
+const helicone = createHelicone({
   apiKey: process.env.HELICONE_API_KEY!,
 });
 
@@ -23,7 +23,7 @@ async function basicPromptExample() {
 
   try {
     const result = await generateText({
-      model: gateway.languageModel("gpt-4o", {
+      model: helicone("gpt-4o", {
         promptId: "ec771n", // Get this from your Helicone dashboard after saving your prompt
         inputs: {
           customer_name: "Sarah Johnson",
@@ -58,7 +58,7 @@ async function streamingPromptExample() {
 
   try {
     const result = await streamText({
-      model: gateway.languageModel("gpt-4o", {
+      model: helicone("gpt-4o", {
         promptId: "eKnmBR", // Get this from your Helicone dashboard after saving your prompt
         inputs: {
           product_name: "Smart Fitness Watch",
@@ -108,7 +108,7 @@ async function multipleEnvironmentsExample() {
       console.log(`\n--- Testing ${env} environment ---`);
 
       const result = await generateText({
-        model: gateway.languageModel("gpt-4o", {
+        model: helicone("gpt-4o", {
           promptId: "TytZ2G", // Get this from your Helicone dashboard after saving your prompt
           inputs: {
             user_name: "Alex",
@@ -140,7 +140,7 @@ async function regularMessagesExample() {
   try {
     // This shows that regular AI SDK usage still works
     const result = await generateText({
-      model: gateway.languageModel('gpt-4o', {
+      model: helicone('gpt-4o', {
         extraBody: {
           helicone: {
             sessionId: 'regular-session-789',
@@ -164,7 +164,7 @@ async function promptWithToolsExample() {
 
   try {
     const result = await generateText({
-      model: gateway.languageModel("gpt-4o", {
+      model: helicone("gpt-4o", {
         promptId: "g2voao", // Get this from your Helicone dashboard after saving your prompt
         inputs: {
           location: "San Francisco, CA",

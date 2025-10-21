@@ -76,6 +76,21 @@ export class HeliconeProvider implements ProviderV2 {
   }
 }
 
-export function createHelicone(config: HeliconeProviderConfig = {}): HeliconeProvider {
-  return new HeliconeProvider(config);
+interface ModelSettings {
+  promptId?: string;
+  inputs?: Record<string, any>;
+  environment?: string;
+  extraBody?: HeliconeExtraBody;
+  apiKey?: string;
+}
+
+export function createHelicone(config: HeliconeProviderConfig = {}) {
+  const provider = new HeliconeProvider(config);
+
+  return function heliconeModel(
+    modelId: string,
+    settings?: ModelSettings
+  ): LanguageModelV2 {
+    return provider.languageModel(modelId, settings);
+  };
 }
