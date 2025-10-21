@@ -1,6 +1,6 @@
 {
   "name": "@helicone/ai-sdk-provider",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Helicone provider for Vercel AI SDK",
   "type": "module",
   "main": "dist/index.cjs",
