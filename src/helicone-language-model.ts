@@ -283,6 +283,9 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
         completed: boolean;
       }> = new Map();
 
+      // Map tool call index to ID for streaming chunks
+      const indexToId: Map<number, string> = new Map();
+
       const textDecoder = new TextDecoder();
       const reader = response.body!.getReader();
 
@@ -304,7 +307,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                       type: 'tool-call',
                       toolCallId: toolCall.id,
                       toolName: toolCall.name,
-                      input: toolCall.arguments ? toolCall.arguments : '{}'
+                      input: toolCall.arguments
                     } as LanguageModelV2StreamPart);
 
                     toolCall.completed = true;
@@ -335,15 +338,16 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                 // Transform OpenAI streaming format to AI SDK events
                 try {
                   const parsed = JSON.parse(data);
-                  const choice = parsed.choices?.[0];
-                  if (!choice) continue;
 
-                  // Update usage data when available
+                  // Update usage data when available (even if no choices)
                   if (parsed.usage) {
                     usage.inputTokens = parsed.usage.prompt_tokens || 0;
                     usage.outputTokens = parsed.usage.completion_tokens || 0;
                     usage.totalTokens = parsed.usage.total_tokens || 0;
                   }
+
+                  const choice = parsed.choices?.[0];
+                  if (!choice) continue;
 
                   // Capture finish reason and complete tool calls
                   if (choice.finish_reason) {
@@ -361,7 +365,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                           type: 'tool-call',
                           toolCallId: toolCall.id,
                           toolName: toolCall.name,
-                          input: toolCall.arguments ? toolCall.arguments : '{}'
+                          input: toolCall.arguments
                         } as LanguageModelV2StreamPart);
 
                         toolCall.completed = true;
@@ -384,8 +388,20 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                   // Transform tool calls to tool-input events
                   if (delta.tool_calls) {
                     for (const toolCall of delta.tool_calls) {
-                      const toolId = toolCall.id;
-                      if (!toolId) continue;
+                      let toolId: string;
+
+                      if (toolCall.id) {
+                        // First chunk with ID, store the mapping
+                        toolId = toolCall.id;
+                        if (toolCall.index !== undefined) {
+                          indexToId.set(toolCall.index, toolId);
+                        }
+                      } else if (toolCall.index !== undefined && indexToId.has(toolCall.index)) {
+                        // Subsequent chunks, use mapped ID
+                        toolId = indexToId.get(toolCall.index)!;
+                      } else {
+                        continue;
+                      }
 
                       // Get or create tool call tracking
                       let trackedCall = toolCalls.get(toolId);
