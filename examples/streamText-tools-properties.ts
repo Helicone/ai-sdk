@@ -12,7 +12,7 @@ async function main(provider: "openai" | "gateway" = "gateway") {
   });
 
   const openai = createOpenAI({
-    baseURL: "https://ai-gateway.helicone.ai/",
+    baseURL: "https://ai-gateway.helicone.ai/v1",
     headers: {
       "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
     },
