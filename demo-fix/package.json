@@ -1,0 +1,23 @@
+{
+  "name": "helicone-gateway-tool-calling-demo-fixed",
+  "version": "1.0.0",
+  "description": "Fixed version of the Helicone gateway tool calling demo",
+  "type": "module",
+  "scripts": {
+    "start:gateway": "tsx index.ts gateway",
+    "start:openai": "tsx index.ts openai",
+    "dev": "tsx watch index.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^2.0.42",
+    "@helicone/ai-sdk-provider": "file:../",
+    "ai": "^5.0.59",
+    "dotenv": "^16.4.5",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

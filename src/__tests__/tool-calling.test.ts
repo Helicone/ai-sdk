@@ -642,6 +642,7 @@ describe('Tool Calling', () => {
           choices: [{
             delta: {
               tool_calls: [{
+                index: 0,
                 id: 'call_streaming_1',
                 type: 'function',
                 function: {
@@ -697,13 +698,21 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
-      // Verify we got the expected streaming chunks
+      // Verify we got the expected streaming chunks (both tool-input and tool-call events)
+      const toolInputStartChunk = chunks.find(chunk => chunk.type === 'tool-input-start');
+      expect(toolInputStartChunk).toBeDefined();
+      expect(toolInputStartChunk!.id).toBe('call_streaming_1');
+      expect(toolInputStartChunk!.toolName).toBe('getWeather');
+
+      const toolInputEndChunk = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEndChunk).toBeDefined();
+      expect(toolInputEndChunk!.id).toBe('call_streaming_1');
+
       const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_1');
       expect(toolCallChunk!.toolName).toBe('getWeather');
-      // For streaming, input should be the raw string
-      expect(toolCallChunk!.input).toBe('{"location": "San Francisco", "unit": "fahrenheit"}');
+      expect(toolCallChunk!.input).toEqual({"location": "San Francisco", "unit": "fahrenheit"});
 
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
@@ -718,6 +727,7 @@ describe('Tool Calling', () => {
           choices: [{
             delta: {
               tool_calls: [{
+                index: 0,
                 id: 'call_streaming_2',
                 type: 'function',
                 function: {
@@ -769,12 +779,25 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
+      // Check for both tool-input and tool-call events
+      const toolInputStart = chunks.find(chunk => chunk.type === 'tool-input-start');
+      expect(toolInputStart).toBeDefined();
+      expect(toolInputStart!.id).toBe('call_streaming_2');
+      expect(toolInputStart!.toolName).toBe('getCurrentTime');
+
+      const toolInputEnd = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnd).toBeDefined();
+      expect(toolInputEnd!.id).toBe('call_streaming_2');
+
       const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_2');
       expect(toolCallChunk!.toolName).toBe('getCurrentTime');
-      // Empty arguments should default to '{}'
-      expect(toolCallChunk!.input).toBe('{}');
+      expect(toolCallChunk!.input).toEqual({});
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
     });
 
     it('should handle streaming tool calls with missing arguments', async () => {
@@ -785,6 +808,7 @@ describe('Tool Calling', () => {
           choices: [{
             delta: {
               tool_calls: [{
+                index: 0,
                 id: 'call_streaming_3',
                 type: 'function',
                 function: {
@@ -836,12 +860,25 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
+      // Check for both tool-input and tool-call events
+      const toolInputStart = chunks.find(chunk => chunk.type === 'tool-input-start');
+      expect(toolInputStart).toBeDefined();
+      expect(toolInputStart!.id).toBe('call_streaming_3');
+      expect(toolInputStart!.toolName).toBe('simpleAction');
+
+      const toolInputEnd = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnd).toBeDefined();
+      expect(toolInputEnd!.id).toBe('call_streaming_3');
+
       const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_3');
       expect(toolCallChunk!.toolName).toBe('simpleAction');
-      // Missing arguments should default to '{}'
-      expect(toolCallChunk!.input).toBe('{}');
+      expect(toolCallChunk!.input).toEqual({});
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
     });
 
     it('should handle streaming with multiple tool calls', async () => {
@@ -853,6 +890,7 @@ describe('Tool Calling', () => {
             delta: {
               tool_calls: [
                 {
+                  index: 0,
                   id: 'call_multi_1',
                   type: 'function',
                   function: {
@@ -861,6 +899,7 @@ describe('Tool Calling', () => {
                   }
                 },
                 {
+                  index: 1,
                   id: 'call_multi_2',
                   type: 'function',
                   function: {
@@ -929,18 +968,37 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
+      // Check for both tool-input and tool-call events
+      const toolInputStarts = chunks.filter(chunk => chunk.type === 'tool-input-start');
+      expect(toolInputStarts).toHaveLength(2);
+
+      const weatherStart = toolInputStarts.find(chunk => chunk.toolName === 'getWeather');
+      expect(weatherStart).toBeDefined();
+      expect(weatherStart!.id).toBe('call_multi_1');
+
+      const calcStart = toolInputStarts.find(chunk => chunk.toolName === 'calculate');
+      expect(calcStart).toBeDefined();
+      expect(calcStart!.id).toBe('call_multi_2');
+
+      const toolInputEnds = chunks.filter(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnds).toHaveLength(2);
+
       const toolCallChunks = chunks.filter(chunk => chunk.type === 'tool-call');
       expect(toolCallChunks).toHaveLength(2);
 
       const weatherCall = toolCallChunks.find(chunk => chunk.toolName === 'getWeather');
       expect(weatherCall).toBeDefined();
       expect(weatherCall!.toolCallId).toBe('call_multi_1');
-      expect(weatherCall!.input).toBe('{"location": "San Francisco"}');
+      expect(weatherCall!.input).toEqual({"location": "San Francisco"});
 
       const calcCall = toolCallChunks.find(chunk => chunk.toolName === 'calculate');
       expect(calcCall).toBeDefined();
       expect(calcCall!.toolCallId).toBe('call_multi_2');
-      expect(calcCall!.input).toBe('{"a": 42, "b": 17, "operation": "multiply"}');
+      expect(calcCall!.input).toEqual({"a": 42, "b": 17, "operation": "multiply"});
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
     });
 
     it('should handle streaming with mixed text and tool calls', async () => {
@@ -961,6 +1019,7 @@ describe('Tool Calling', () => {
           choices: [{
             delta: {
               tool_calls: [{
+                index: 0,
                 id: 'call_mixed_1',
                 type: 'function',
                 function: {
@@ -1015,20 +1074,34 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
-      // Should have both text-delta and tool-call chunks
+      // Should have text-delta, tool-input, and tool-call chunks
       const textChunks = chunks.filter(chunk => chunk.type === 'text-delta');
+      const toolInputStarts = chunks.filter(chunk => chunk.type === 'tool-input-start');
       const toolCallChunks = chunks.filter(chunk => chunk.type === 'tool-call');
 
       expect(textChunks.length).toBeGreaterThan(0);
+      expect(toolInputStarts).toHaveLength(1);
       expect(toolCallChunks).toHaveLength(1);
 
       const textChunk = textChunks[0];
       expect(textChunk.delta).toBe('Let me check the weather for you. ');
 
+      const toolInputStart = toolInputStarts[0];
+      expect(toolInputStart.id).toBe('call_mixed_1');
+      expect(toolInputStart.toolName).toBe('getWeather');
+
+      const toolInputEnd = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnd).toBeDefined();
+      expect(toolInputEnd!.id).toBe('call_mixed_1');
+
       const toolCallChunk = toolCallChunks[0];
       expect(toolCallChunk.toolCallId).toBe('call_mixed_1');
       expect(toolCallChunk.toolName).toBe('getWeather');
-      expect(toolCallChunk.input).toBe('{"location": "New York", "unit": "celsius"}');
+      expect(toolCallChunk.input).toEqual({"location": "New York", "unit": "celsius"});
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
     });
 
     it('should verify streaming request format includes correct tool definitions', async () => {
