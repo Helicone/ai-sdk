@@ -358,11 +358,14 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                 if (delta?.tool_calls) {
                   for (const toolCall of delta.tool_calls) {
                     if (toolCall.function?.name) {
+                      // For streaming, AI SDK expects raw string arguments, not parsed objects
+                      const argsString = toolCall.function.arguments || '{}';
+
                       controller.enqueue({
                         type: 'tool-call',
                         toolCallId: toolCall.id,
                         toolName: toolCall.function.name,
-                        args: JSON.parse(toolCall.function.arguments || '{}'),
+                        input: argsString, // Raw string for streaming
                       } as any);
                     }
                   }

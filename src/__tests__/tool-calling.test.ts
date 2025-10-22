@@ -1,5 +1,24 @@
 import { HeliconeProvider } from '../helicone-provider';
 import { z } from 'zod';
+import { LanguageModelV2StreamPart, LanguageModelV2, LanguageModelV2ToolCall } from '@ai-sdk/provider';
+
+// Type alias for the return type of doGenerate
+type GenerateResult = Awaited<ReturnType<LanguageModelV2['doGenerate']>>;
+
+// Type for OpenAI streaming response chunks used in tests
+interface OpenAIStreamChunk {
+  id: string;
+  object: string;
+  choices: Array<{
+    delta?: Record<string, unknown>;
+    finish_reason?: string | null;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
 
 // Mock fetch globally
 const mockFetch = jest.fn();
@@ -234,7 +253,7 @@ describe('Tool Calling', () => {
 
       const model = provider.languageModel('gpt-4o-mini');
 
-      const result: any = await model.doGenerate({
+      const result: GenerateResult = await model.doGenerate({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'What is the weather?' }] }],
         tools: [{
           type: 'function',
@@ -292,7 +311,7 @@ describe('Tool Calling', () => {
 
       const model = provider.languageModel('gpt-4o-mini');
 
-      const result: any = await model.doGenerate({
+      const result: GenerateResult = await model.doGenerate({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
         tools: [
           {
@@ -317,8 +336,8 @@ describe('Tool Calling', () => {
       });
 
       expect(result.content).toHaveLength(2);
-      expect(result.content[0].toolName).toBe('getWeather');
-      expect(result.content[1].toolName).toBe('calculate');
+      expect((result.content[0] as LanguageModelV2ToolCall).toolName).toBe('getWeather');
+      expect((result.content[1] as LanguageModelV2ToolCall).toolName).toBe('calculate');
     });
   });
 
@@ -591,6 +610,479 @@ describe('Tool Calling', () => {
       expect(requestHeaders['Helicone-Property-Tag-tools']).toBe('true');
       expect(requestHeaders['Helicone-Property-Tag-demo']).toBe('true');
       expect(requestHeaders['Helicone-Cache-Enabled']).toBe('true');
+    });
+  });
+
+  describe('Streaming Tool Calls', () => {
+    const createMockStreamResponse = (chunks: OpenAIStreamChunk[]) => {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          chunks.forEach(chunk => {
+            const data = `data: ${JSON.stringify(chunk)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          });
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      return {
+        ok: true,
+        body: stream
+      };
+    };
+
+    it('should handle streaming tool calls with string arguments', async () => {
+      // Mock streaming response with tool calls
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                id: 'call_streaming_1',
+                type: 'function',
+                function: {
+                  name: 'getWeather',
+                  arguments: '{"location": "San Francisco", "unit": "fahrenheit"}'
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 50, completion_tokens: 30, total_tokens: 80 }
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'What is the weather?' }] }],
+        tools: [{
+          type: 'function',
+          name: 'getWeather',
+          description: 'Get weather for a location',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              location: { type: 'string' },
+              unit: { type: 'string' }
+            },
+            required: ['location']
+          }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Verify we got the expected streaming chunks
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk).toBeDefined();
+      expect(toolCallChunk!.toolCallId).toBe('call_streaming_1');
+      expect(toolCallChunk!.toolName).toBe('getWeather');
+      // For streaming, input should be the raw string
+      expect(toolCallChunk!.input).toBe('{"location": "San Francisco", "unit": "fahrenheit"}');
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
+    });
+
+    it('should handle streaming tool calls with empty arguments', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                id: 'call_streaming_2',
+                type: 'function',
+                function: {
+                  name: 'getCurrentTime',
+                  arguments: ''
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'What time is it?' }] }],
+        tools: [{
+          type: 'function',
+          name: 'getCurrentTime',
+          description: 'Get current time',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk).toBeDefined();
+      expect(toolCallChunk!.toolCallId).toBe('call_streaming_2');
+      expect(toolCallChunk!.toolName).toBe('getCurrentTime');
+      // Empty arguments should default to '{}'
+      expect(toolCallChunk!.input).toBe('{}');
+    });
+
+    it('should handle streaming tool calls with missing arguments', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                id: 'call_streaming_3',
+                type: 'function',
+                function: {
+                  name: 'simpleAction'
+                  // No arguments field
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Do something simple' }] }],
+        tools: [{
+          type: 'function',
+          name: 'simpleAction',
+          description: 'Perform a simple action',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk).toBeDefined();
+      expect(toolCallChunk!.toolCallId).toBe('call_streaming_3');
+      expect(toolCallChunk!.toolName).toBe('simpleAction');
+      // Missing arguments should default to '{}'
+      expect(toolCallChunk!.input).toBe('{}');
+    });
+
+    it('should handle streaming with multiple tool calls', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [
+                {
+                  id: 'call_multi_1',
+                  type: 'function',
+                  function: {
+                    name: 'getWeather',
+                    arguments: '{"location": "San Francisco"}'
+                  }
+                },
+                {
+                  id: 'call_multi_2',
+                  type: 'function',
+                  function: {
+                    name: 'calculate',
+                    arguments: '{"a": 42, "b": 17, "operation": "multiply"}'
+                  }
+                }
+              ]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Get weather and calculate' }] }],
+        tools: [
+          {
+            type: 'function',
+            name: 'getWeather',
+            description: 'Get weather',
+            inputSchema: {
+              type: 'object',
+              properties: { location: { type: 'string' } },
+              required: ['location']
+            }
+          },
+          {
+            type: 'function',
+            name: 'calculate',
+            description: 'Calculate',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                a: { type: 'number' },
+                b: { type: 'number' },
+                operation: { type: 'string' }
+              },
+              required: ['a', 'b', 'operation']
+            }
+          }
+        ]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      const toolCallChunks = chunks.filter(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunks).toHaveLength(2);
+
+      const weatherCall = toolCallChunks.find(chunk => chunk.toolName === 'getWeather');
+      expect(weatherCall).toBeDefined();
+      expect(weatherCall!.toolCallId).toBe('call_multi_1');
+      expect(weatherCall!.input).toBe('{"location": "San Francisco"}');
+
+      const calcCall = toolCallChunks.find(chunk => chunk.toolName === 'calculate');
+      expect(calcCall).toBeDefined();
+      expect(calcCall!.toolCallId).toBe('call_multi_2');
+      expect(calcCall!.input).toBe('{"a": 42, "b": 17, "operation": "multiply"}');
+    });
+
+    it('should handle streaming with mixed text and tool calls', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              content: 'Let me check the weather for you. '
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                id: 'call_mixed_1',
+                type: 'function',
+                function: {
+                  name: 'getWeather',
+                  arguments: '{"location": "New York", "unit": "celsius"}'
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'What is the weather in NY?' }] }],
+        tools: [{
+          type: 'function',
+          name: 'getWeather',
+          description: 'Get weather',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              location: { type: 'string' },
+              unit: { type: 'string' }
+            },
+            required: ['location']
+          }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should have both text-delta and tool-call chunks
+      const textChunks = chunks.filter(chunk => chunk.type === 'text-delta');
+      const toolCallChunks = chunks.filter(chunk => chunk.type === 'tool-call');
+
+      expect(textChunks.length).toBeGreaterThan(0);
+      expect(toolCallChunks).toHaveLength(1);
+
+      const textChunk = textChunks[0];
+      expect(textChunk.delta).toBe('Let me check the weather for you. ');
+
+      const toolCallChunk = toolCallChunks[0];
+      expect(toolCallChunk.toolCallId).toBe('call_mixed_1');
+      expect(toolCallChunk.toolName).toBe('getWeather');
+      expect(toolCallChunk.input).toBe('{"location": "New York", "unit": "celsius"}');
+    });
+
+    it('should verify streaming request format includes correct tool definitions', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'stop'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test tool definitions' }] }],
+        tools: [{
+          type: 'function',
+          name: 'testTool',
+          description: 'A test tool',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              param1: { type: 'string', description: 'First parameter' },
+              param2: { type: 'number', description: 'Second parameter' }
+            },
+            required: ['param1']
+          }
+        }]
+      });
+
+      // Verify the request body
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+
+      expect(requestBody.stream).toBe(true);
+      expect(requestBody.tools).toHaveLength(1);
+      expect(requestBody.tools[0]).toEqual({
+        type: 'function',
+        function: {
+          name: 'testTool',
+          description: 'A test tool',
+          parameters: {
+            type: 'object',
+            properties: {
+              param1: { type: 'string', description: 'First parameter' },
+              param2: { type: 'number', description: 'Second parameter' }
+            },
+            required: ['param1']
+          }
+        }
+      });
     });
   });
 });
