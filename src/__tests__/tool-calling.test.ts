@@ -1158,5 +1158,454 @@ describe('Tool Calling', () => {
       });
     });
   });
+
+  describe('Pass-Through Streaming Implementation', () => {
+    const createMockStreamResponse = (chunks: OpenAIStreamChunk[]) => {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          chunks.forEach(chunk => {
+            const data = `data: ${JSON.stringify(chunk)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          });
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      return {
+        ok: true,
+        body: stream
+      };
+    };
+
+    it('should pass through usage data correctly when provided with finish_reason', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_usage_test',
+                type: 'function',
+                function: {
+                  name: 'testTool',
+                  arguments: '{"param": "value"}'
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test usage' }] }],
+        tools: [{
+          type: 'function',
+          name: 'testTool',
+          description: 'Test tool',
+          inputSchema: { type: 'object', properties: { param: { type: 'string' } } }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.usage).toEqual({
+        inputTokens: 100,
+        outputTokens: 50,
+        totalTokens: 150
+      });
+      expect(finishChunk!.finishReason).toBe('tool-calls');
+    });
+
+    it('should complete tool calls on stream end when no finish_reason is provided', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_stream_end',
+                type: 'function',
+                function: {
+                  name: 'endTool',
+                  arguments: '{"data": "test"}'
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        }
+        // No chunk with finish_reason - stream just ends
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test stream end' }] }],
+        tools: [{
+          type: 'function',
+          name: 'endTool',
+          description: 'End tool',
+          inputSchema: { type: 'object', properties: { data: { type: 'string' } } }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should complete tool call on stream end
+      const toolInputEnd = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnd).toBeDefined();
+      expect(toolInputEnd!.id).toBe('call_stream_end');
+
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk).toBeDefined();
+      expect(toolCallChunk!.toolCallId).toBe('call_stream_end');
+      expect(toolCallChunk!.toolName).toBe('endTool');
+      expect(toolCallChunk!.input).toEqual({ data: 'test' });
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('stop'); // Default when no finish_reason provided
+    });
+
+    it('should handle malformed JSON in tool arguments gracefully', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_malformed',
+                type: 'function',
+                function: {
+                  name: 'malformedTool',
+                  arguments: '{"invalid": json}'  // Malformed JSON
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test malformed JSON' }] }],
+        tools: [{
+          type: 'function',
+          name: 'malformedTool',
+          description: 'Malformed tool',
+          inputSchema: { type: 'object' }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should gracefully handle malformed JSON by defaulting to empty object
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk).toBeDefined();
+      expect(toolCallChunk!.input).toEqual({}); // Should default to empty object
+    });
+
+    it('should preserve event order in pass-through transformation', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: { content: 'First text' },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_order',
+                type: 'function',
+                function: { name: 'orderTool', arguments: '{"test":' }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_order',
+                function: { arguments: '"value"}' }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: { content: ' Second text' },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test order' }] }],
+        tools: [{
+          type: 'function',
+          name: 'orderTool',
+          description: 'Order tool',
+          inputSchema: { type: 'object' }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Verify correct event order preservation
+      const eventTypes = chunks.map(chunk => chunk.type);
+
+      // Should have all expected event types (order may vary due to streaming chunks)
+      expect(eventTypes).toContain('text-delta');
+      expect(eventTypes).toContain('tool-input-start');
+      expect(eventTypes).toContain('tool-input-delta');
+      expect(eventTypes).toContain('tool-input-end');
+      expect(eventTypes).toContain('tool-call');
+      expect(eventTypes).toContain('finish');
+
+      // Verify text content comes first and finish comes last
+      expect(eventTypes[0]).toBe('text-delta');
+      expect(eventTypes[eventTypes.length - 1]).toBe('finish');
+
+      // Verify tool call was completed correctly
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk!.input).toEqual({ test: 'value' });
+    });
+
+    it('should handle multiple concurrent tool calls', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_multi_1',
+                  type: 'function',
+                  function: { name: 'tool1', arguments: '{"a":1}' }
+                },
+                {
+                  index: 1,
+                  id: 'call_multi_2',
+                  type: 'function',
+                  function: { name: 'tool2', arguments: '{"b":2}' }
+                }
+              ]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test multiple tools' }] }],
+        tools: [
+          {
+            type: 'function',
+            name: 'tool1',
+            description: 'First tool',
+            inputSchema: { type: 'object' }
+          },
+          {
+            type: 'function',
+            name: 'tool2',
+            description: 'Second tool',
+            inputSchema: { type: 'object' }
+          }
+        ]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should handle both tool calls correctly
+      const toolCallChunks = chunks.filter(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunks).toHaveLength(2);
+
+      const tool1Call = toolCallChunks.find(chunk => chunk.toolName === 'tool1');
+      const tool2Call = toolCallChunks.find(chunk => chunk.toolName === 'tool2');
+
+      expect(tool1Call).toBeDefined();
+      expect(tool1Call!.input).toEqual({ a: 1 });
+
+      expect(tool2Call).toBeDefined();
+      expect(tool2Call!.input).toEqual({ b: 2 });
+    });
+
+    it('should skip malformed chunks gracefully', async () => {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          // Valid chunk
+          controller.enqueue(encoder.encode('data: {"id":"test","object":"chat.completion.chunk","choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}\n\n'));
+          // Malformed chunk
+          controller.enqueue(encoder.encode('data: {invalid json}\n\n'));
+          // Another valid chunk
+          controller.enqueue(encoder.encode('data: {"id":"test","object":"chat.completion.chunk","choices":[{"delta":{},"finish_reason":"stop"}]}\n\n'));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        body: stream
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test malformed chunks' }] }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should process valid chunks and skip malformed ones
+      const textChunks = chunks.filter(chunk => chunk.type === 'text-delta');
+      expect(textChunks).toHaveLength(1);
+      expect(textChunks[0].delta).toBe('Hello');
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('stop');
+    });
+  });
 });
 

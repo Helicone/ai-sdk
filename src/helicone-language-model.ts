@@ -274,13 +274,15 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
       const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
       let actualFinishReason: LanguageModelV2FinishReason = 'stop';
-      const toolCalls: Array<{
+
+      // Track tool calls to send completion events
+      const toolCalls: Map<string, {
         id: string;
-        type: 'function';
-        function: { name: string; arguments: string; };
-        inputStarted: boolean;
-        sent: boolean;
-      } | null> = [];
+        name: string;
+        arguments: string;
+        completed: boolean;
+      }> = new Map();
+
       const textDecoder = new TextDecoder();
       const reader = response.body!.getReader();
 
@@ -290,6 +292,33 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
             while (true) {
               const { done, value } = await reader.read();
               if (done) {
+                // Complete any outstanding tool calls before finishing
+                for (const [id, toolCall] of toolCalls) {
+                  if (!toolCall.completed) {
+                    controller.enqueue({
+                      type: 'tool-input-end',
+                      id: toolCall.id
+                    } as LanguageModelV2StreamPart);
+
+                    // Parse arguments for tool-call event
+                    let parsedInput = {};
+                    try {
+                      parsedInput = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
+                    } catch {
+                      parsedInput = {};
+                    }
+
+                    controller.enqueue({
+                      type: 'tool-call',
+                      toolCallId: toolCall.id,
+                      toolName: toolCall.name,
+                      input: parsedInput
+                    } as LanguageModelV2StreamPart);
+
+                    toolCall.completed = true;
+                  }
+                }
+
                 controller.enqueue({
                   type: 'finish',
                   usage: usage as LanguageModelV2Usage,
@@ -308,25 +337,38 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
                 const data = trimmed.slice(6);
                 if (data === '[DONE]') {
-                  // Stream is done, let the reader.read() handle the completion
                   continue;
                 }
 
-                // Parse and process the data using our transform logic
+                // Transform OpenAI streaming format to AI SDK events
                 try {
                   const parsed = JSON.parse(data);
                   const choice = parsed.choices?.[0];
                   if (!choice) continue;
 
-                  // Handle finish reason and send tool-call events
+                  // Update usage data when available
+                  if (parsed.usage) {
+                    usage.inputTokens = parsed.usage.prompt_tokens || 0;
+                    usage.outputTokens = parsed.usage.completion_tokens || 0;
+                    usage.totalTokens = parsed.usage.total_tokens || 0;
+                  }
+
+                  // Capture finish reason and complete tool calls
                   if (choice.finish_reason) {
-                    // Send tool-call events for completed tool calls
-                    for (const toolCall of toolCalls) {
-                      if (toolCall && !toolCall.sent && toolCall.inputStarted) {
-                        // Send tool-call event with parsed arguments
+                    actualFinishReason = mapHeliconeFinishReason(choice.finish_reason);
+
+                    // Complete any outstanding tool calls
+                    for (const [id, toolCall] of toolCalls) {
+                      if (!toolCall.completed) {
+                        controller.enqueue({
+                          type: 'tool-input-end',
+                          id: toolCall.id
+                        } as LanguageModelV2StreamPart);
+
+                        // Parse arguments for tool-call event
                         let parsedInput = {};
                         try {
-                          parsedInput = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
+                          parsedInput = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
                         } catch {
                           parsedInput = {};
                         }
@@ -334,22 +376,19 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                         controller.enqueue({
                           type: 'tool-call',
                           toolCallId: toolCall.id,
-                          toolName: toolCall.function.name,
+                          toolName: toolCall.name,
                           input: parsedInput
                         } as LanguageModelV2StreamPart);
 
-                        toolCall.sent = true;
+                        toolCall.completed = true;
                       }
                     }
-
-                    actualFinishReason = mapHeliconeFinishReason(choice.finish_reason);
-                    // Continue processing to handle [DONE] properly
                   }
 
                   const delta = choice.delta;
                   if (!delta) continue;
 
-                  // Handle text content
+                  // Transform text content to text-delta events
                   if (delta.content) {
                     controller.enqueue({
                       type: 'text-delta',
@@ -358,168 +397,48 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                     } as LanguageModelV2StreamPart);
                   }
 
-                  // Handle tool calls
+                  // Transform tool calls to tool-input events
                   if (delta.tool_calls) {
                     for (const toolCall of delta.tool_calls) {
-                      // Find existing tool call by index (not by ID, since ID may be missing in subsequent chunks)
-                      let existingCall = toolCalls[toolCall.index];
+                      const toolId = toolCall.id;
+                      if (!toolId) continue;
 
-                      if (!existingCall) {
-                        // New tool call - create it
-                        existingCall = {
-                          id: toolCall.id, // This will be set in the first chunk
-                          type: 'function' as const,
-                          function: {
-                            name: toolCall.function?.name || '',
-                            arguments: toolCall.function?.arguments || ''
-                          },
-                          inputStarted: false,
-                          sent: false
+                      // Get or create tool call tracking
+                      let trackedCall = toolCalls.get(toolId);
+                      if (!trackedCall) {
+                        trackedCall = {
+                          id: toolId,
+                          name: '',
+                          arguments: '',
+                          completed: false
                         };
-
-                        // Ensure toolCalls array has enough slots
-                        while (toolCalls.length <= toolCall.index) {
-                          toolCalls.push(null as any);
-                        }
-                        toolCalls[toolCall.index] = existingCall;
-
-                        // Send tool-input-start if we have id and name
-                        if (existingCall.id && existingCall.function.name) {
-                          controller.enqueue({
-                            type: 'tool-input-start',
-                            id: existingCall.id,
-                            toolName: existingCall.function.name
-                          } as LanguageModelV2StreamPart);
-                          existingCall.inputStarted = true;
-
-                          // If we also have arguments in this first chunk, send them as delta
-                          if (toolCall.function?.arguments !== undefined) {
-                            if (toolCall.function.arguments === '') {
-                              // Empty arguments, complete immediately
-                              controller.enqueue({
-                                type: 'tool-input-end',
-                                id: existingCall.id
-                              } as LanguageModelV2StreamPart);
-
-                              controller.enqueue({
-                                type: 'tool-call',
-                                toolCallId: existingCall.id,
-                                toolName: existingCall.function.name,
-                                input: {}
-                              } as LanguageModelV2StreamPart);
-
-                              existingCall.sent = true;
-                            } else {
-                              controller.enqueue({
-                                type: 'tool-input-delta',
-                                id: existingCall.id,
-                                delta: toolCall.function.arguments
-                              } as LanguageModelV2StreamPart);
-
-                              // If this looks like complete JSON, send tool-input-end and tool-call
-                              try {
-                                const parsed = JSON.parse(existingCall.function.arguments);
-                                controller.enqueue({
-                                  type: 'tool-input-end',
-                                  id: existingCall.id
-                                } as LanguageModelV2StreamPart);
-
-                                controller.enqueue({
-                                  type: 'tool-call',
-                                  toolCallId: existingCall.id,
-                                  toolName: existingCall.function.name,
-                                  input: parsed
-                                } as LanguageModelV2StreamPart);
-
-                                existingCall.sent = true;
-                              } catch {
-                                // Not complete JSON yet, continue accumulating
-                              }
-                            }
-                          } else {
-                            // No arguments provided, send empty object and complete immediately
-                            controller.enqueue({
-                              type: 'tool-input-end',
-                              id: existingCall.id
-                            } as LanguageModelV2StreamPart);
-
-                            controller.enqueue({
-                              type: 'tool-call',
-                              toolCallId: existingCall.id,
-                              toolName: existingCall.function.name,
-                              input: {}
-                            } as LanguageModelV2StreamPart);
-
-                            existingCall.sent = true;
-                          }
-                        }
-                      } else {
-                        // Existing tool call - update properties if they're provided
-                        if (toolCall.id && !existingCall.id) {
-                          existingCall.id = toolCall.id;
-                        }
-                        if (toolCall.function?.name && !existingCall.function.name) {
-                          existingCall.function.name = toolCall.function.name;
-
-                          // If we just got the name and haven't started yet, send tool-input-start
-                          if (existingCall.id && !existingCall.inputStarted) {
-                            controller.enqueue({
-                              type: 'tool-input-start',
-                              id: existingCall.id,
-                              toolName: existingCall.function.name
-                            } as LanguageModelV2StreamPart);
-                            existingCall.inputStarted = true;
-                          }
-                        }
-
-                        // Accumulate arguments
-                        if (toolCall.function?.arguments) {
-                          existingCall.function.arguments += toolCall.function.arguments;
-
-                          if (existingCall.id && existingCall.inputStarted && !existingCall.sent) {
-                            controller.enqueue({
-                              type: 'tool-input-delta',
-                              id: existingCall.id,
-                              delta: toolCall.function.arguments
-                            } as LanguageModelV2StreamPart);
-
-                            // Check if arguments are complete JSON and finalize
-                            try {
-                              const parsed = existingCall.function.arguments ?
-                                JSON.parse(existingCall.function.arguments) : {};
-                              controller.enqueue({
-                                type: 'tool-input-end',
-                                id: existingCall.id
-                              } as LanguageModelV2StreamPart);
-
-                              controller.enqueue({
-                                type: 'tool-call',
-                                toolCallId: existingCall.id,
-                                toolName: existingCall.function.name,
-                                input: parsed
-                              } as LanguageModelV2StreamPart);
-
-                              existingCall.sent = true;
-                            } catch {
-                              // Not complete JSON yet, continue accumulating
-                            }
-                          }
-                        }
+                        toolCalls.set(toolId, trackedCall);
                       }
 
-                      // Don't send tool-input-end here - let it be handled at stream completion
-                      // Tool calls will be finalized when we receive the finish_reason
+                      // Send tool-input-start when we get the tool name
+                      if (toolCall.function?.name && !trackedCall.name) {
+                        trackedCall.name = toolCall.function.name;
+                        controller.enqueue({
+                          type: 'tool-input-start',
+                          id: toolId,
+                          toolName: toolCall.function.name
+                        } as LanguageModelV2StreamPart);
+                      }
+
+                      // Send tool-input-delta when we get arguments
+                      if (toolCall.function?.arguments) {
+                        trackedCall.arguments += toolCall.function.arguments;
+                        controller.enqueue({
+                          type: 'tool-input-delta',
+                          id: toolId,
+                          delta: toolCall.function.arguments
+                        } as LanguageModelV2StreamPart);
+                      }
                     }
                   }
 
-                  // Update usage if available
-                  if (parsed.usage) {
-                    usage.inputTokens = parsed.usage.prompt_tokens || 0;
-                    usage.outputTokens = parsed.usage.completion_tokens || 0;
-                    usage.totalTokens = parsed.usage.total_tokens || 0;
-                  }
-
                 } catch (parseError) {
+                  // Skip malformed JSON chunks
                 }
               }
             }
