@@ -712,7 +712,7 @@ describe('Tool Calling', () => {
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_1');
       expect(toolCallChunk!.toolName).toBe('getWeather');
-      expect(toolCallChunk!.input).toEqual({"location": "San Francisco", "unit": "fahrenheit"});
+      expect(toolCallChunk!.input).toBe('{"location": "San Francisco", "unit": "fahrenheit"}');
 
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
@@ -793,7 +793,7 @@ describe('Tool Calling', () => {
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_2');
       expect(toolCallChunk!.toolName).toBe('getCurrentTime');
-      expect(toolCallChunk!.input).toEqual({});
+      expect(toolCallChunk!.input).toBe('{}');
 
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
@@ -874,7 +874,7 @@ describe('Tool Calling', () => {
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_3');
       expect(toolCallChunk!.toolName).toBe('simpleAction');
-      expect(toolCallChunk!.input).toEqual({});
+      expect(toolCallChunk!.input).toBe('{}');
 
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
@@ -989,12 +989,12 @@ describe('Tool Calling', () => {
       const weatherCall = toolCallChunks.find(chunk => chunk.toolName === 'getWeather');
       expect(weatherCall).toBeDefined();
       expect(weatherCall!.toolCallId).toBe('call_multi_1');
-      expect(weatherCall!.input).toEqual({"location": "San Francisco"});
+      expect(weatherCall!.input).toBe('{"location": "San Francisco"}');
 
       const calcCall = toolCallChunks.find(chunk => chunk.toolName === 'calculate');
       expect(calcCall).toBeDefined();
       expect(calcCall!.toolCallId).toBe('call_multi_2');
-      expect(calcCall!.input).toEqual({"a": 42, "b": 17, "operation": "multiply"});
+      expect(calcCall!.input).toBe('{"a": 42, "b": 17, "operation": "multiply"}');
 
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
@@ -1097,7 +1097,7 @@ describe('Tool Calling', () => {
       const toolCallChunk = toolCallChunks[0];
       expect(toolCallChunk.toolCallId).toBe('call_mixed_1');
       expect(toolCallChunk.toolName).toBe('getWeather');
-      expect(toolCallChunk.input).toEqual({"location": "New York", "unit": "celsius"});
+      expect(toolCallChunk.input).toBe('{"location": "New York", "unit": "celsius"}');
 
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
@@ -1304,7 +1304,7 @@ describe('Tool Calling', () => {
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_stream_end');
       expect(toolCallChunk!.toolName).toBe('endTool');
-      expect(toolCallChunk!.input).toEqual({ data: 'test' });
+      expect(toolCallChunk!.input).toBe('{"data": "test"}');
 
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
@@ -1370,7 +1370,7 @@ describe('Tool Calling', () => {
       // Should gracefully handle malformed JSON by defaulting to empty object
       const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
       expect(toolCallChunk).toBeDefined();
-      expect(toolCallChunk!.input).toEqual({}); // Should default to empty object
+      expect(toolCallChunk!.input).toBe('{"invalid": json}'); // Should pass through malformed JSON as string
     });
 
     it('should preserve event order in pass-through transformation', async () => {
@@ -1473,7 +1473,7 @@ describe('Tool Calling', () => {
 
       // Verify tool call was completed correctly
       const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
-      expect(toolCallChunk!.input).toEqual({ test: 'value' });
+      expect(toolCallChunk!.input).toBe('{"test":"value"}');
     });
 
     it('should handle multiple concurrent tool calls', async () => {
@@ -1553,10 +1553,10 @@ describe('Tool Calling', () => {
       const tool2Call = toolCallChunks.find(chunk => chunk.toolName === 'tool2');
 
       expect(tool1Call).toBeDefined();
-      expect(tool1Call!.input).toEqual({ a: 1 });
+      expect(tool1Call!.input).toBe('{"a":1}');
 
       expect(tool2Call).toBeDefined();
-      expect(tool2Call!.input).toEqual({ b: 2 });
+      expect(tool2Call!.input).toBe('{"b":2}');
     });
 
     it('should skip malformed chunks gracefully', async () => {

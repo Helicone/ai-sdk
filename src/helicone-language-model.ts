@@ -300,19 +300,11 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                       id: toolCall.id
                     } as LanguageModelV2StreamPart);
 
-                    // Parse arguments for tool-call event
-                    let parsedInput = {};
-                    try {
-                      parsedInput = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
-                    } catch {
-                      parsedInput = {};
-                    }
-
                     controller.enqueue({
                       type: 'tool-call',
                       toolCallId: toolCall.id,
                       toolName: toolCall.name,
-                      input: parsedInput
+                      input: toolCall.arguments ? toolCall.arguments : '{}'
                     } as LanguageModelV2StreamPart);
 
                     toolCall.completed = true;
@@ -365,19 +357,11 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                           id: toolCall.id
                         } as LanguageModelV2StreamPart);
 
-                        // Parse arguments for tool-call event
-                        let parsedInput = {};
-                        try {
-                          parsedInput = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
-                        } catch {
-                          parsedInput = {};
-                        }
-
                         controller.enqueue({
                           type: 'tool-call',
                           toolCallId: toolCall.id,
                           toolName: toolCall.name,
-                          input: parsedInput
+                          input: toolCall.arguments ? toolCall.arguments : '{}'
                         } as LanguageModelV2StreamPart);
 
                         toolCall.completed = true;
@@ -409,7 +393,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                         trackedCall = {
                           id: toolId,
                           name: '',
-                          arguments: '',
+                          arguments: '{}',
                           completed: false
                         };
                         toolCalls.set(toolId, trackedCall);
@@ -427,7 +411,13 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
                       // Send tool-input-delta when we get arguments
                       if (toolCall.function?.arguments) {
-                        trackedCall.arguments += toolCall.function.arguments;
+                        // Smart argument accumulation
+                        if (trackedCall.arguments === '{}') {
+                          trackedCall.arguments = toolCall.function.arguments;  // Replace default
+                        } else {
+                          trackedCall.arguments += toolCall.function.arguments;  // Accumulate
+                        }
+
                         controller.enqueue({
                           type: 'tool-input-delta',
                           id: toolId,
