@@ -46,12 +46,31 @@ async function main() {
     maxRetries: 5
   });
 
+  const result2 = await generateText({
+    model: helicone("gpt-4o"),
+    prompt: "What is the weather like in San Francisco?",
+    tools: {
+      getWeather: tool({
+        description: "Get weather for a location",
+        parameters: z.object({
+          location: z.string().describe("The city name")
+        }),
+        execute: async (args) => {
+          // Your weather API call here
+          return `It's sunny in ${args.location}`;
+        }
+      } as any)
+    },
+  });
+
   console.log('\n=== Response ===');
   console.log(result.text || '(Model requested tool calls)');
-
+  console.log(result2.text || '(Model requested tool calls)');
   console.log('\n=== Request Info ===');
-  console.log(`Total tokens: ${result.usage.totalTokens}`);
-  console.log(`Finish reason: ${result.finishReason}`);
+  console.log(`Total tokens 1: ${result.usage.totalTokens}`);
+  console.log(`Finish reason 1: ${result.finishReason}`);
+  console.log(`Total tokens 2: ${result2.usage.totalTokens}`);
+  console.log(`Finish reason 2: ${result2.finishReason}`);
 
   if (result.finishReason === 'tool-calls') {
     console.log('\n✓ Tool calling works! The model requested to use the defined tools.');
