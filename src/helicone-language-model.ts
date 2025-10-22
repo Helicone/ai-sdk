@@ -3,6 +3,7 @@ import {
   LanguageModelV2CallOptions,
   LanguageModelV2FinishReason,
   LanguageModelV2StreamPart,
+  LanguageModelV2Usage,
 } from '@ai-sdk/provider';
 import { asSchema } from '@ai-sdk/provider-utils';
 import { HeliconeSettings, HeliconeExtraBody } from './types';
@@ -199,13 +200,6 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
           };
         }
 
-        console.error('Helicone API Error:', {
-          status: response.status,
-          statusText: response.statusText,
-          url: response.url,
-          errorData,
-          responseText: errorText,
-        });
 
         throw createHeliconeError({
           data: errorData,
@@ -278,116 +272,195 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
         });
       }
 
-      let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+      const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+      let actualFinishReason: LanguageModelV2FinishReason = 'stop';
+
+      // Track tool calls to send completion events
+      const toolCalls: Map<string, {
+        id: string;
+        name: string;
+        arguments: string;
+        completed: boolean;
+      }> = new Map();
+
+      const textDecoder = new TextDecoder();
+      const reader = response.body!.getReader();
+
+      const processedStream = new ReadableStream<LanguageModelV2StreamPart>({
+        async start(controller) {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                // Complete any outstanding tool calls before finishing
+                for (const [id, toolCall] of toolCalls) {
+                  if (!toolCall.completed) {
+                    controller.enqueue({
+                      type: 'tool-input-end',
+                      id: toolCall.id
+                    } as LanguageModelV2StreamPart);
+
+                    // Parse arguments for tool-call event
+                    let parsedInput = {};
+                    try {
+                      parsedInput = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
+                    } catch {
+                      parsedInput = {};
+                    }
+
+                    controller.enqueue({
+                      type: 'tool-call',
+                      toolCallId: toolCall.id,
+                      toolName: toolCall.name,
+                      input: parsedInput
+                    } as LanguageModelV2StreamPart);
+
+                    toolCall.completed = true;
+                  }
+                }
+
+                controller.enqueue({
+                  type: 'finish',
+                  usage: usage as LanguageModelV2Usage,
+                  finishReason: actualFinishReason,
+                });
+                controller.close();
+                break;
+              }
+
+              const chunk = textDecoder.decode(value);
+
+              // Process each line in the chunk
+              for (const line of chunk.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data: ')) continue;
+
+                const data = trimmed.slice(6);
+                if (data === '[DONE]') {
+                  continue;
+                }
+
+                // Transform OpenAI streaming format to AI SDK events
+                try {
+                  const parsed = JSON.parse(data);
+                  const choice = parsed.choices?.[0];
+                  if (!choice) continue;
+
+                  // Update usage data when available
+                  if (parsed.usage) {
+                    usage.inputTokens = parsed.usage.prompt_tokens || 0;
+                    usage.outputTokens = parsed.usage.completion_tokens || 0;
+                    usage.totalTokens = parsed.usage.total_tokens || 0;
+                  }
+
+                  // Capture finish reason and complete tool calls
+                  if (choice.finish_reason) {
+                    actualFinishReason = mapHeliconeFinishReason(choice.finish_reason);
+
+                    // Complete any outstanding tool calls
+                    for (const [id, toolCall] of toolCalls) {
+                      if (!toolCall.completed) {
+                        controller.enqueue({
+                          type: 'tool-input-end',
+                          id: toolCall.id
+                        } as LanguageModelV2StreamPart);
+
+                        // Parse arguments for tool-call event
+                        let parsedInput = {};
+                        try {
+                          parsedInput = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
+                        } catch {
+                          parsedInput = {};
+                        }
+
+                        controller.enqueue({
+                          type: 'tool-call',
+                          toolCallId: toolCall.id,
+                          toolName: toolCall.name,
+                          input: parsedInput
+                        } as LanguageModelV2StreamPart);
+
+                        toolCall.completed = true;
+                      }
+                    }
+                  }
+
+                  const delta = choice.delta;
+                  if (!delta) continue;
+
+                  // Transform text content to text-delta events
+                  if (delta.content) {
+                    controller.enqueue({
+                      type: 'text-delta',
+                      delta: delta.content,
+                      id: 'text-0'
+                    } as LanguageModelV2StreamPart);
+                  }
+
+                  // Transform tool calls to tool-input events
+                  if (delta.tool_calls) {
+                    for (const toolCall of delta.tool_calls) {
+                      const toolId = toolCall.id;
+                      if (!toolId) continue;
+
+                      // Get or create tool call tracking
+                      let trackedCall = toolCalls.get(toolId);
+                      if (!trackedCall) {
+                        trackedCall = {
+                          id: toolId,
+                          name: '',
+                          arguments: '',
+                          completed: false
+                        };
+                        toolCalls.set(toolId, trackedCall);
+                      }
+
+                      // Send tool-input-start when we get the tool name
+                      if (toolCall.function?.name && !trackedCall.name) {
+                        trackedCall.name = toolCall.function.name;
+                        controller.enqueue({
+                          type: 'tool-input-start',
+                          id: toolId,
+                          toolName: toolCall.function.name
+                        } as LanguageModelV2StreamPart);
+                      }
+
+                      // Send tool-input-delta when we get arguments
+                      if (toolCall.function?.arguments) {
+                        trackedCall.arguments += toolCall.function.arguments;
+                        controller.enqueue({
+                          type: 'tool-input-delta',
+                          id: toolId,
+                          delta: toolCall.function.arguments
+                        } as LanguageModelV2StreamPart);
+                      }
+                    }
+                  }
+
+                } catch (parseError) {
+                  // Skip malformed JSON chunks
+                }
+              }
+            }
+          } catch (error) {
+            controller.error(error);
+          }
+        }
+      });
 
       return {
-        stream: this.createStreamFromResponse(response, usage),
-        rawCall: { rawPrompt: body.messages, rawSettings: body },
+        stream: processedStream,
+        rawCall: { rawPrompt: body.messages, rawSettings: body }
       };
+
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw error;
       }
-
       throw createHeliconeError({
         message: `Failed to stream response: ${error}`,
-        cause: error,
+        cause: error
       });
     }
-  }
-
-  private createStreamFromResponse(
-    response: Response,
-    usage: { inputTokens: number; outputTokens: number; totalTokens: number }
-  ): ReadableStream<LanguageModelV2StreamPart> {
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('Response body is not readable');
-    }
-
-    const decoder = new TextDecoder();
-
-    return new ReadableStream<LanguageModelV2StreamPart>({
-      async start(controller) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-
-            for (const line of lines) {
-              const trimmedLine = line.trim();
-              if (!trimmedLine.startsWith('data: ')) continue;
-
-              const data = trimmedLine.slice(6);
-              if (data === '[DONE]') {
-                controller.enqueue({
-                  type: 'finish',
-                  finishReason: 'stop' as LanguageModelV2FinishReason,
-                  usage,
-                });
-                return;
-              }
-
-              try {
-                const parsed = JSON.parse(data);
-                const choice = parsed.choices?.[0];
-
-                if (!choice) continue;
-
-                if (choice.finish_reason) {
-                  controller.enqueue({
-                    type: 'finish',
-                    finishReason: mapHeliconeFinishReason(choice.finish_reason),
-                    usage,
-                  });
-                  return;
-                }
-
-                const delta = choice.delta;
-                if (delta?.content) {
-                  controller.enqueue({
-                    type: 'text-delta',
-                    id: 'text',
-                    delta: delta.content,
-                  });
-                }
-
-                if (delta?.tool_calls) {
-                  for (const toolCall of delta.tool_calls) {
-                    if (toolCall.function?.name) {
-                      // For streaming, AI SDK expects raw string arguments, not parsed objects
-                      const argsString = toolCall.function.arguments || '{}';
-
-                      controller.enqueue({
-                        type: 'tool-call',
-                        toolCallId: toolCall.id,
-                        toolName: toolCall.function.name,
-                        input: argsString, // Raw string for streaming
-                      } as any);
-                    }
-                  }
-                }
-
-                if (parsed.usage) {
-                  usage.inputTokens = parsed.usage.prompt_tokens || 0;
-                  usage.outputTokens = parsed.usage.completion_tokens || 0;
-                  usage.totalTokens = parsed.usage.total_tokens || (usage.inputTokens + usage.outputTokens);
-                }
-              } catch (parseError) {
-                // Ignore parse errors for individual chunks
-                continue;
-              }
-            }
-          }
-        } catch (error) {
-          controller.error(error);
-        } finally {
-          controller.close();
-        }
-      },
-    });
   }
 }

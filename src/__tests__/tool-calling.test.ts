@@ -642,6 +642,7 @@ describe('Tool Calling', () => {
           choices: [{
             delta: {
               tool_calls: [{
+                index: 0,
                 id: 'call_streaming_1',
                 type: 'function',
                 function: {
@@ -697,13 +698,21 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
-      // Verify we got the expected streaming chunks
+      // Verify we got the expected streaming chunks (both tool-input and tool-call events)
+      const toolInputStartChunk = chunks.find(chunk => chunk.type === 'tool-input-start');
+      expect(toolInputStartChunk).toBeDefined();
+      expect(toolInputStartChunk!.id).toBe('call_streaming_1');
+      expect(toolInputStartChunk!.toolName).toBe('getWeather');
+
+      const toolInputEndChunk = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEndChunk).toBeDefined();
+      expect(toolInputEndChunk!.id).toBe('call_streaming_1');
+
       const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_1');
       expect(toolCallChunk!.toolName).toBe('getWeather');
-      // For streaming, input should be the raw string
-      expect(toolCallChunk!.input).toBe('{"location": "San Francisco", "unit": "fahrenheit"}');
+      expect(toolCallChunk!.input).toEqual({"location": "San Francisco", "unit": "fahrenheit"});
 
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
@@ -718,6 +727,7 @@ describe('Tool Calling', () => {
           choices: [{
             delta: {
               tool_calls: [{
+                index: 0,
                 id: 'call_streaming_2',
                 type: 'function',
                 function: {
@@ -769,12 +779,25 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
+      // Check for both tool-input and tool-call events
+      const toolInputStart = chunks.find(chunk => chunk.type === 'tool-input-start');
+      expect(toolInputStart).toBeDefined();
+      expect(toolInputStart!.id).toBe('call_streaming_2');
+      expect(toolInputStart!.toolName).toBe('getCurrentTime');
+
+      const toolInputEnd = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnd).toBeDefined();
+      expect(toolInputEnd!.id).toBe('call_streaming_2');
+
       const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_2');
       expect(toolCallChunk!.toolName).toBe('getCurrentTime');
-      // Empty arguments should default to '{}'
-      expect(toolCallChunk!.input).toBe('{}');
+      expect(toolCallChunk!.input).toEqual({});
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
     });
 
     it('should handle streaming tool calls with missing arguments', async () => {
@@ -785,6 +808,7 @@ describe('Tool Calling', () => {
           choices: [{
             delta: {
               tool_calls: [{
+                index: 0,
                 id: 'call_streaming_3',
                 type: 'function',
                 function: {
@@ -836,12 +860,25 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
+      // Check for both tool-input and tool-call events
+      const toolInputStart = chunks.find(chunk => chunk.type === 'tool-input-start');
+      expect(toolInputStart).toBeDefined();
+      expect(toolInputStart!.id).toBe('call_streaming_3');
+      expect(toolInputStart!.toolName).toBe('simpleAction');
+
+      const toolInputEnd = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnd).toBeDefined();
+      expect(toolInputEnd!.id).toBe('call_streaming_3');
+
       const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
       expect(toolCallChunk).toBeDefined();
       expect(toolCallChunk!.toolCallId).toBe('call_streaming_3');
       expect(toolCallChunk!.toolName).toBe('simpleAction');
-      // Missing arguments should default to '{}'
-      expect(toolCallChunk!.input).toBe('{}');
+      expect(toolCallChunk!.input).toEqual({});
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
     });
 
     it('should handle streaming with multiple tool calls', async () => {
@@ -853,6 +890,7 @@ describe('Tool Calling', () => {
             delta: {
               tool_calls: [
                 {
+                  index: 0,
                   id: 'call_multi_1',
                   type: 'function',
                   function: {
@@ -861,6 +899,7 @@ describe('Tool Calling', () => {
                   }
                 },
                 {
+                  index: 1,
                   id: 'call_multi_2',
                   type: 'function',
                   function: {
@@ -929,18 +968,37 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
+      // Check for both tool-input and tool-call events
+      const toolInputStarts = chunks.filter(chunk => chunk.type === 'tool-input-start');
+      expect(toolInputStarts).toHaveLength(2);
+
+      const weatherStart = toolInputStarts.find(chunk => chunk.toolName === 'getWeather');
+      expect(weatherStart).toBeDefined();
+      expect(weatherStart!.id).toBe('call_multi_1');
+
+      const calcStart = toolInputStarts.find(chunk => chunk.toolName === 'calculate');
+      expect(calcStart).toBeDefined();
+      expect(calcStart!.id).toBe('call_multi_2');
+
+      const toolInputEnds = chunks.filter(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnds).toHaveLength(2);
+
       const toolCallChunks = chunks.filter(chunk => chunk.type === 'tool-call');
       expect(toolCallChunks).toHaveLength(2);
 
       const weatherCall = toolCallChunks.find(chunk => chunk.toolName === 'getWeather');
       expect(weatherCall).toBeDefined();
       expect(weatherCall!.toolCallId).toBe('call_multi_1');
-      expect(weatherCall!.input).toBe('{"location": "San Francisco"}');
+      expect(weatherCall!.input).toEqual({"location": "San Francisco"});
 
       const calcCall = toolCallChunks.find(chunk => chunk.toolName === 'calculate');
       expect(calcCall).toBeDefined();
       expect(calcCall!.toolCallId).toBe('call_multi_2');
-      expect(calcCall!.input).toBe('{"a": 42, "b": 17, "operation": "multiply"}');
+      expect(calcCall!.input).toEqual({"a": 42, "b": 17, "operation": "multiply"});
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
     });
 
     it('should handle streaming with mixed text and tool calls', async () => {
@@ -961,6 +1019,7 @@ describe('Tool Calling', () => {
           choices: [{
             delta: {
               tool_calls: [{
+                index: 0,
                 id: 'call_mixed_1',
                 type: 'function',
                 function: {
@@ -1015,20 +1074,34 @@ describe('Tool Calling', () => {
         reader.releaseLock();
       }
 
-      // Should have both text-delta and tool-call chunks
+      // Should have text-delta, tool-input, and tool-call chunks
       const textChunks = chunks.filter(chunk => chunk.type === 'text-delta');
+      const toolInputStarts = chunks.filter(chunk => chunk.type === 'tool-input-start');
       const toolCallChunks = chunks.filter(chunk => chunk.type === 'tool-call');
 
       expect(textChunks.length).toBeGreaterThan(0);
+      expect(toolInputStarts).toHaveLength(1);
       expect(toolCallChunks).toHaveLength(1);
 
       const textChunk = textChunks[0];
       expect(textChunk.delta).toBe('Let me check the weather for you. ');
 
+      const toolInputStart = toolInputStarts[0];
+      expect(toolInputStart.id).toBe('call_mixed_1');
+      expect(toolInputStart.toolName).toBe('getWeather');
+
+      const toolInputEnd = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnd).toBeDefined();
+      expect(toolInputEnd!.id).toBe('call_mixed_1');
+
       const toolCallChunk = toolCallChunks[0];
       expect(toolCallChunk.toolCallId).toBe('call_mixed_1');
       expect(toolCallChunk.toolName).toBe('getWeather');
-      expect(toolCallChunk.input).toBe('{"location": "New York", "unit": "celsius"}');
+      expect(toolCallChunk.input).toEqual({"location": "New York", "unit": "celsius"});
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('tool-calls');
     });
 
     it('should verify streaming request format includes correct tool definitions', async () => {
@@ -1083,6 +1156,455 @@ describe('Tool Calling', () => {
           }
         }
       });
+    });
+  });
+
+  describe('Pass-Through Streaming Implementation', () => {
+    const createMockStreamResponse = (chunks: OpenAIStreamChunk[]) => {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          chunks.forEach(chunk => {
+            const data = `data: ${JSON.stringify(chunk)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          });
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      return {
+        ok: true,
+        body: stream
+      };
+    };
+
+    it('should pass through usage data correctly when provided with finish_reason', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_usage_test',
+                type: 'function',
+                function: {
+                  name: 'testTool',
+                  arguments: '{"param": "value"}'
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test usage' }] }],
+        tools: [{
+          type: 'function',
+          name: 'testTool',
+          description: 'Test tool',
+          inputSchema: { type: 'object', properties: { param: { type: 'string' } } }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.usage).toEqual({
+        inputTokens: 100,
+        outputTokens: 50,
+        totalTokens: 150
+      });
+      expect(finishChunk!.finishReason).toBe('tool-calls');
+    });
+
+    it('should complete tool calls on stream end when no finish_reason is provided', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_stream_end',
+                type: 'function',
+                function: {
+                  name: 'endTool',
+                  arguments: '{"data": "test"}'
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        }
+        // No chunk with finish_reason - stream just ends
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test stream end' }] }],
+        tools: [{
+          type: 'function',
+          name: 'endTool',
+          description: 'End tool',
+          inputSchema: { type: 'object', properties: { data: { type: 'string' } } }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should complete tool call on stream end
+      const toolInputEnd = chunks.find(chunk => chunk.type === 'tool-input-end');
+      expect(toolInputEnd).toBeDefined();
+      expect(toolInputEnd!.id).toBe('call_stream_end');
+
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk).toBeDefined();
+      expect(toolCallChunk!.toolCallId).toBe('call_stream_end');
+      expect(toolCallChunk!.toolName).toBe('endTool');
+      expect(toolCallChunk!.input).toEqual({ data: 'test' });
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('stop'); // Default when no finish_reason provided
+    });
+
+    it('should handle malformed JSON in tool arguments gracefully', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_malformed',
+                type: 'function',
+                function: {
+                  name: 'malformedTool',
+                  arguments: '{"invalid": json}'  // Malformed JSON
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test malformed JSON' }] }],
+        tools: [{
+          type: 'function',
+          name: 'malformedTool',
+          description: 'Malformed tool',
+          inputSchema: { type: 'object' }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should gracefully handle malformed JSON by defaulting to empty object
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk).toBeDefined();
+      expect(toolCallChunk!.input).toEqual({}); // Should default to empty object
+    });
+
+    it('should preserve event order in pass-through transformation', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: { content: 'First text' },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_order',
+                type: 'function',
+                function: { name: 'orderTool', arguments: '{"test":' }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_order',
+                function: { arguments: '"value"}' }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: { content: ' Second text' },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test order' }] }],
+        tools: [{
+          type: 'function',
+          name: 'orderTool',
+          description: 'Order tool',
+          inputSchema: { type: 'object' }
+        }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Verify correct event order preservation
+      const eventTypes = chunks.map(chunk => chunk.type);
+
+      // Should have all expected event types (order may vary due to streaming chunks)
+      expect(eventTypes).toContain('text-delta');
+      expect(eventTypes).toContain('tool-input-start');
+      expect(eventTypes).toContain('tool-input-delta');
+      expect(eventTypes).toContain('tool-input-end');
+      expect(eventTypes).toContain('tool-call');
+      expect(eventTypes).toContain('finish');
+
+      // Verify text content comes first and finish comes last
+      expect(eventTypes[0]).toBe('text-delta');
+      expect(eventTypes[eventTypes.length - 1]).toBe('finish');
+
+      // Verify tool call was completed correctly
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk!.input).toEqual({ test: 'value' });
+    });
+
+    it('should handle multiple concurrent tool calls', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_multi_1',
+                  type: 'function',
+                  function: { name: 'tool1', arguments: '{"a":1}' }
+                },
+                {
+                  index: 1,
+                  id: 'call_multi_2',
+                  type: 'function',
+                  function: { name: 'tool2', arguments: '{"b":2}' }
+                }
+              ]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce(createMockStreamResponse(streamChunks));
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test multiple tools' }] }],
+        tools: [
+          {
+            type: 'function',
+            name: 'tool1',
+            description: 'First tool',
+            inputSchema: { type: 'object' }
+          },
+          {
+            type: 'function',
+            name: 'tool2',
+            description: 'Second tool',
+            inputSchema: { type: 'object' }
+          }
+        ]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should handle both tool calls correctly
+      const toolCallChunks = chunks.filter(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunks).toHaveLength(2);
+
+      const tool1Call = toolCallChunks.find(chunk => chunk.toolName === 'tool1');
+      const tool2Call = toolCallChunks.find(chunk => chunk.toolName === 'tool2');
+
+      expect(tool1Call).toBeDefined();
+      expect(tool1Call!.input).toEqual({ a: 1 });
+
+      expect(tool2Call).toBeDefined();
+      expect(tool2Call!.input).toEqual({ b: 2 });
+    });
+
+    it('should skip malformed chunks gracefully', async () => {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          // Valid chunk
+          controller.enqueue(encoder.encode('data: {"id":"test","object":"chat.completion.chunk","choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}\n\n'));
+          // Malformed chunk
+          controller.enqueue(encoder.encode('data: {invalid json}\n\n'));
+          // Another valid chunk
+          controller.enqueue(encoder.encode('data: {"id":"test","object":"chat.completion.chunk","choices":[{"delta":{},"finish_reason":"stop"}]}\n\n'));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        body: stream
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test malformed chunks' }] }]
+      });
+
+      const chunks: LanguageModelV2StreamPart[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Should process valid chunks and skip malformed ones
+      const textChunks = chunks.filter(chunk => chunk.type === 'text-delta');
+      expect(textChunks).toHaveLength(1);
+      expect(textChunks[0].delta).toBe('Hello');
+
+      const finishChunk = chunks.find(chunk => chunk.type === 'finish');
+      expect(finishChunk).toBeDefined();
+      expect(finishChunk!.finishReason).toBe('stop');
     });
   });
 });
