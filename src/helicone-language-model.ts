@@ -4,15 +4,15 @@ import {
   LanguageModelV2FinishReason,
   LanguageModelV2StreamPart,
   LanguageModelV2Usage,
-} from '@ai-sdk/provider';
-import { asSchema } from '@ai-sdk/provider-utils';
-import { HeliconeSettings, HeliconeExtraBody } from './types';
-import { convertToHeliconePrompt } from './convert-to-helicone-prompt';
+} from "@ai-sdk/provider";
+import { asSchema } from "@ai-sdk/provider-utils";
+import { HeliconeSettings, HeliconeExtraBody } from "./types";
+import { convertToHeliconePrompt } from "./convert-to-helicone-prompt";
 import {
   HeliconeErrorData,
   mapHeliconeFinishReason,
   createHeliconeError,
-} from './helicone-error';
+} from "./helicone-error";
 
 type HeliconeLanguageModelConfig = {
   modelId: string;
@@ -21,9 +21,9 @@ type HeliconeLanguageModelConfig = {
 };
 
 export class HeliconeLanguageModel implements LanguageModelV2 {
-  readonly specificationVersion = 'v2' as const;
+  readonly specificationVersion = "v2" as const;
   readonly supportedUrls: Record<string, RegExp[]> = {};
-  readonly provider: string = 'helicone';
+  readonly provider: string = "helicone";
   readonly modelId: string;
   private readonly settings: HeliconeSettings;
   private readonly extraBody?: HeliconeExtraBody;
@@ -35,17 +35,17 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
   }
 
   private get baseURL(): string {
-    return this.settings.baseURL ?? 'https://ai-gateway.helicone.ai';
+    return this.settings.baseURL ?? "https://ai-gateway.helicone.ai";
   }
 
   private get headers(): Record<string, string> {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(this.settings.headers || {})
+      "Content-Type": "application/json",
+      ...(this.settings.headers || {}),
     };
 
     if (this.settings.apiKey) {
-      headers['Authorization'] = `Bearer ${this.settings.apiKey}`;
+      headers["Authorization"] = `Bearer ${this.settings.apiKey}`;
     }
 
     // Convert Helicone metadata from extraBody to headers
@@ -53,11 +53,11 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       const helicone = this.extraBody.helicone;
 
       if (helicone.sessionId) {
-        headers['Helicone-Session-Id'] = helicone.sessionId;
+        headers["Helicone-Session-Id"] = helicone.sessionId;
       }
 
       if (helicone.userId) {
-        headers['Helicone-User-Id'] = helicone.userId;
+        headers["Helicone-User-Id"] = helicone.userId;
       }
 
       if (helicone.properties) {
@@ -68,12 +68,12 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
       if (helicone.tags && helicone.tags.length > 0) {
         helicone.tags.forEach((tag) => {
-          headers[`Helicone-Property-Tag-${tag}`] = 'true';
+          headers[`Helicone-Property-Tag-${tag}`] = "true";
         });
       }
 
       if (helicone.cache !== undefined) {
-        headers['Helicone-Cache-Enabled'] = String(helicone.cache);
+        headers["Helicone-Cache-Enabled"] = String(helicone.cache);
       }
     }
 
@@ -82,20 +82,27 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
   private buildRequestBody(options: LanguageModelV2CallOptions): any {
     // Extract helicone metadata and other extraBody fields
-    const { helicone, prompt_id, inputs, environment, ...otherExtraBody } = this.extraBody || {};
+    const { helicone, prompt_id, inputs, environment, ...otherExtraBody } =
+      this.extraBody || {};
 
     const body: any = {
       model: this.modelId,
       stream: false,
       ...(options.temperature != null && { temperature: options.temperature }),
-      ...(options.maxOutputTokens != null && { max_tokens: options.maxOutputTokens }),
+      ...(options.maxOutputTokens != null && {
+        max_tokens: options.maxOutputTokens,
+      }),
       ...(options.topP != null && { top_p: options.topP }),
       ...(options.topK != null && { top_k: options.topK }),
-      ...(options.frequencyPenalty != null && { frequency_penalty: options.frequencyPenalty }),
-      ...(options.presencePenalty != null && { presence_penalty: options.presencePenalty }),
+      ...(options.frequencyPenalty != null && {
+        frequency_penalty: options.frequencyPenalty,
+      }),
+      ...(options.presencePenalty != null && {
+        presence_penalty: options.presencePenalty,
+      }),
       ...(options.stopSequences != null && { stop: options.stopSequences }),
       ...(options.seed != null && { seed: options.seed }),
-      ...otherExtraBody
+      ...otherExtraBody,
     };
 
     // Handle Helicone prompt integration
@@ -116,15 +123,15 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
     }
 
     if (options.toolChoice) {
-      if (options.toolChoice.type === 'auto') {
-        body.tool_choice = 'auto';
-      } else if (options.toolChoice.type === 'required') {
-        body.tool_choice = 'required';
-      } else if (options.toolChoice.type === 'none') {
-        body.tool_choice = 'none';
-      } else if (options.toolChoice.type === 'tool') {
+      if (options.toolChoice.type === "auto") {
+        body.tool_choice = "auto";
+      } else if (options.toolChoice.type === "required") {
+        body.tool_choice = "required";
+      } else if (options.toolChoice.type === "none") {
+        body.tool_choice = "none";
+      } else if (options.toolChoice.type === "tool") {
         body.tool_choice = {
-          type: 'function',
+          type: "function",
           function: { name: options.toolChoice.toolName },
         };
       }
@@ -132,7 +139,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
     if (options.tools && options.tools.length > 0) {
       body.tools = options.tools.map((tool: any) => {
-        let parameters: any = { type: 'object' };
+        let parameters: any = { type: "object" };
 
         // The AI SDK transforms tools before passing them to providers
         // Try to get proper JSON Schema from the tool
@@ -143,29 +150,32 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
             parameters = schema.jsonSchema;
           } catch (e) {
             // If asSchema fails, try to use as-is
-            parameters = typeof tool.parameters === 'object' ? tool.parameters : { type: 'object' };
+            parameters =
+              typeof tool.parameters === "object"
+                ? tool.parameters
+                : { type: "object" };
           }
         } else if (tool.inputSchema) {
           // AI SDK may have already converted to inputSchema
           // Try to access jsonSchema property if it exists
           if (tool.inputSchema.jsonSchema) {
             parameters = tool.inputSchema.jsonSchema;
-          } else if (typeof tool.inputSchema === 'object') {
+          } else if (typeof tool.inputSchema === "object") {
             // Ensure we have type: object at minimum
             parameters = {
-              type: 'object',
-              ...tool.inputSchema
+              type: "object",
+              ...tool.inputSchema,
             };
           }
         }
 
         return {
-          type: 'function',
+          type: "function",
           function: {
             name: tool.name || tool.toolName,
-            description: tool.description || '',
-            parameters
-          }
+            description: tool.description || "",
+            parameters,
+          },
         };
       });
     }
@@ -178,13 +188,13 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
     try {
       const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
-        method: 'POST',
+        method: "POST",
         headers: this.headers,
         body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
+        const errorText = await response.text().catch(() => "");
         let errorData: HeliconeErrorData = {};
 
         try {
@@ -193,13 +203,13 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
           // If not JSON, put the raw text in the error message
           errorData = {
             error: {
-              message: errorText || `HTTP ${response.status}: ${response.statusText}`,
-              type: 'http_error',
+              message:
+                errorText || `HTTP ${response.status}: ${response.statusText}`,
+              type: "http_error",
               code: response.status.toString(),
             },
           };
         }
-
 
         throw createHeliconeError({
           data: errorData,
@@ -216,18 +226,18 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
       if (message.content) {
         content.push({
-          type: 'text',
-          text: message.content
+          type: "text",
+          text: message.content,
         });
       }
 
       if (message.tool_calls) {
         for (const toolCall of message.tool_calls) {
           content.push({
-            type: 'tool-call',
+            type: "tool-call",
             toolCallId: toolCall.id,
             toolName: toolCall.function.name,
-            input: JSON.parse(toolCall.function.arguments)
+            input: JSON.parse(toolCall.function.arguments),
           });
         }
       }
@@ -238,12 +248,15 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
         usage: {
           inputTokens: data.usage?.prompt_tokens ?? 0,
           outputTokens: data.usage?.completion_tokens ?? 0,
-          totalTokens: data.usage?.total_tokens ?? (data.usage?.prompt_tokens ?? 0) + (data.usage?.completion_tokens ?? 0)
+          totalTokens:
+            data.usage?.total_tokens ??
+            (data.usage?.prompt_tokens ?? 0) +
+              (data.usage?.completion_tokens ?? 0),
         },
-        warnings: []
+        warnings: [],
       };
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (error instanceof Error && error.name === "AbortError") {
         throw error;
       }
 
@@ -259,13 +272,15 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
     try {
       const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
-        method: 'POST',
+        method: "POST",
         headers: this.headers,
         body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})) as HeliconeErrorData;
+        const errorData = (await response
+          .json()
+          .catch(() => ({}))) as HeliconeErrorData;
         throw createHeliconeError({
           data: errorData,
           response,
@@ -273,15 +288,18 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       }
 
       const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-      let actualFinishReason: LanguageModelV2FinishReason = 'stop';
+      let actualFinishReason: LanguageModelV2FinishReason = "stop";
 
       // Track tool calls to send completion events
-      const toolCalls: Map<string, {
-        id: string;
-        name: string;
-        arguments: string;
-        completed: boolean;
-      }> = new Map();
+      const toolCalls: Map<
+        string,
+        {
+          id: string;
+          name: string;
+          arguments: string;
+          completed: boolean;
+        }
+      > = new Map();
 
       // Map tool call index to ID for streaming chunks
       const indexToId: Map<number, string> = new Map();
@@ -299,15 +317,15 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                 for (const [id, toolCall] of toolCalls) {
                   if (!toolCall.completed) {
                     controller.enqueue({
-                      type: 'tool-input-end',
-                      id: toolCall.id
+                      type: "tool-input-end",
+                      id: toolCall.id,
                     } as LanguageModelV2StreamPart);
 
                     controller.enqueue({
-                      type: 'tool-call',
+                      type: "tool-call",
                       toolCallId: toolCall.id,
                       toolName: toolCall.name,
-                      input: toolCall.arguments
+                      input: toolCall.arguments,
                     } as LanguageModelV2StreamPart);
 
                     toolCall.completed = true;
@@ -315,7 +333,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                 }
 
                 controller.enqueue({
-                  type: 'finish',
+                  type: "finish",
                   usage: usage as LanguageModelV2Usage,
                   finishReason: actualFinishReason,
                 });
@@ -326,12 +344,12 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
               const chunk = textDecoder.decode(value);
 
               // Process each line in the chunk
-              for (const line of chunk.split('\n')) {
+              for (const line of chunk.split("\n")) {
                 const trimmed = line.trim();
-                if (!trimmed.startsWith('data: ')) continue;
+                if (!trimmed.startsWith("data: ")) continue;
 
                 const data = trimmed.slice(6);
-                if (data === '[DONE]') {
+                if (data === "[DONE]") {
                   continue;
                 }
 
@@ -351,21 +369,23 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
                   // Capture finish reason and complete tool calls
                   if (choice.finish_reason) {
-                    actualFinishReason = mapHeliconeFinishReason(choice.finish_reason);
+                    actualFinishReason = mapHeliconeFinishReason(
+                      choice.finish_reason
+                    );
 
                     // Complete any outstanding tool calls
                     for (const [id, toolCall] of toolCalls) {
                       if (!toolCall.completed) {
                         controller.enqueue({
-                          type: 'tool-input-end',
-                          id: toolCall.id
+                          type: "tool-input-end",
+                          id: toolCall.id,
                         } as LanguageModelV2StreamPart);
 
                         controller.enqueue({
-                          type: 'tool-call',
+                          type: "tool-call",
                           toolCallId: toolCall.id,
                           toolName: toolCall.name,
-                          input: toolCall.arguments
+                          input: toolCall.arguments,
                         } as LanguageModelV2StreamPart);
 
                         toolCall.completed = true;
@@ -379,9 +399,18 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                   // Transform text content to text-delta events
                   if (delta.content) {
                     controller.enqueue({
-                      type: 'text-delta',
+                      type: "text-delta",
                       delta: delta.content,
-                      id: 'text-0'
+                      id: "text-0",
+                    } as LanguageModelV2StreamPart);
+                  }
+
+                  // Transform reasoning content to reasoning-delta events
+                  if (delta.reasoning) {
+                    controller.enqueue({
+                      type: "reasoning-delta",
+                      delta: delta.reasoning,
+                      id: "reasoning-0",
                     } as LanguageModelV2StreamPart);
                   }
 
@@ -396,7 +425,10 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                         if (toolCall.index !== undefined) {
                           indexToId.set(toolCall.index, toolId);
                         }
-                      } else if (toolCall.index !== undefined && indexToId.has(toolCall.index)) {
+                      } else if (
+                        toolCall.index !== undefined &&
+                        indexToId.has(toolCall.index)
+                      ) {
                         // Subsequent chunks, use mapped ID
                         toolId = indexToId.get(toolCall.index)!;
                       } else {
@@ -408,9 +440,9 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                       if (!trackedCall) {
                         trackedCall = {
                           id: toolId,
-                          name: '',
-                          arguments: '{}',
-                          completed: false
+                          name: "",
+                          arguments: "{}",
+                          completed: false,
                         };
                         toolCalls.set(toolId, trackedCall);
                       }
@@ -419,30 +451,29 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                       if (toolCall.function?.name && !trackedCall.name) {
                         trackedCall.name = toolCall.function.name;
                         controller.enqueue({
-                          type: 'tool-input-start',
+                          type: "tool-input-start",
                           id: toolId,
-                          toolName: toolCall.function.name
+                          toolName: toolCall.function.name,
                         } as LanguageModelV2StreamPart);
                       }
 
                       // Send tool-input-delta when we get arguments
                       if (toolCall.function?.arguments) {
                         // Smart argument accumulation
-                        if (trackedCall.arguments === '{}') {
-                          trackedCall.arguments = toolCall.function.arguments;  // Replace default
+                        if (trackedCall.arguments === "{}") {
+                          trackedCall.arguments = toolCall.function.arguments; // Replace default
                         } else {
-                          trackedCall.arguments += toolCall.function.arguments;  // Accumulate
+                          trackedCall.arguments += toolCall.function.arguments; // Accumulate
                         }
 
                         controller.enqueue({
-                          type: 'tool-input-delta',
+                          type: "tool-input-delta",
                           id: toolId,
-                          delta: toolCall.function.arguments
+                          delta: toolCall.function.arguments,
                         } as LanguageModelV2StreamPart);
                       }
                     }
                   }
-
                 } catch (parseError) {
                   // Skip malformed JSON chunks
                 }
@@ -451,21 +482,20 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
           } catch (error) {
             controller.error(error);
           }
-        }
+        },
       });
 
       return {
         stream: processedStream,
-        rawCall: { rawPrompt: body.messages, rawSettings: body }
+        rawCall: { rawPrompt: body.messages, rawSettings: body },
       };
-
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (error instanceof Error && error.name === "AbortError") {
         throw error;
       }
       throw createHeliconeError({
         message: `Failed to stream response: ${error}`,
-        cause: error
+        cause: error,
       });
     }
   }
