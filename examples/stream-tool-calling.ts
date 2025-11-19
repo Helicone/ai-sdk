@@ -1,5 +1,5 @@
 import { createHelicone } from "@helicone/ai-sdk-provider";
-import { streamText, tool } from "ai";
+import { streamText, tool, stepCountIs } from "ai";
 import dotenv from "dotenv";
 import { z } from "zod";
 
@@ -30,46 +30,56 @@ async function main() {
     tools: {
       getWeather: tool({
         description: "Get the current weather for a location",
-        parameters: z.object({
+        inputSchema: z.object({
           location: z
             .string()
             .describe("The city and state, e.g. San Francisco, CA"),
           unit: z
             .enum(["celsius", "fahrenheit"])
             .optional()
-            .describe("Temperature unit"),
+            .describe("Temperature unit")
         }),
         execute: async ({ location, unit = "fahrenheit" }) => {
           return `The weather in ${location} is sunny and 72°${unit === "celsius" ? "C" : "F"}.`;
-        },
-      } as any),
+        }
+      }),
       calculate: tool({
         description: "Perform a mathematical calculation",
-        parameters: z.object({
+        inputSchema: z.object({
           operation: z
             .enum(["add", "subtract", "multiply", "divide"])
             .describe("The mathematical operation to perform"),
           a: z.number().describe("First number"),
-          b: z.number().describe("Second number"),
+          b: z.number().describe("Second number")
         }),
         execute: async ({ operation, a, b }) => {
           const ops = {
             add: a + b,
             subtract: a - b,
             multiply: a * b,
-            divide: a / b,
+            divide: a / b
           };
           return `${a} ${operation} ${b} = ${ops[operation]}`;
-        },
-      } as any),
+        }
+      })
     },
+    stopWhen: stepCountIs(5),
     maxRetries: 5,
   });
 
-  console.log("\n=== Response ===");
+  console.log("\n=== Streaming Response ===\n");
+
+  let textContent = "";
 
   for await (const chunk of result.fullStream) {
-    console.log(chunk);
+    if (chunk.type === "text-delta") {
+      process.stdout.write(chunk.text);
+      textContent += chunk.text;
+    } else if (chunk.type === "tool-call") {
+      console.log(`\n[Tool Call: ${chunk.toolName}]`);
+    } else if (chunk.type === "tool-result") {
+      console.log(`[Tool Result: ${chunk.toolName}] ${JSON.stringify(chunk.output)}`);
+    }
   }
 
   console.log("\n\n=== Request Info ===");
@@ -78,18 +88,13 @@ async function main() {
 
   console.log(`Total tokens: ${usage.totalTokens}`);
   console.log(`Finish reason: ${finishReason}`);
+  console.log(`Full text: ${textContent || "(no text generated)"}`);
 
-  if (finishReason === "tool-calls") {
-    console.log(
-      "\n✓ Tool calling works! The model requested to use the defined tools."
-    );
-    console.log("Check your Helicone dashboard to see:");
-    console.log("  - Tool definitions sent to the API");
-    console.log("  - Tool calls requested by the model");
-    console.log("  - Session tracking with custom properties and tags");
-  } else {
-    console.log("\n✓ Request completed successfully!");
-  }
+  console.log("\n✓ Request completed successfully!");
+  console.log("Check your Helicone dashboard to see:");
+  console.log("  - Tool definitions sent to the API");
+  console.log("  - Tool calls and executions");
+  console.log("  - Session tracking with custom properties and tags");
 }
 
 main().catch(console.error);

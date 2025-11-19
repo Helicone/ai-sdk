@@ -159,10 +159,28 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
           }
         }
 
+        // Validate and ensure type is always "object"
+        if (!parameters.type || parameters.type === 'None' || typeof parameters.type !== 'string') {
+          parameters.type = 'object';
+        }
+
+        // Ensure required fields exist
+        if (!parameters.properties && !parameters.additionalProperties) {
+          parameters.properties = {};
+        }
+
+        // Validate the schema before sending
+        const toolName = tool.name || tool.toolName;
+        if (parameters.type !== 'object') {
+          throw createHeliconeError({
+            message: `Invalid schema for function '${toolName}': schema must be a JSON Schema of 'type: "object"', got 'type: "${parameters.type}"'.`
+          });
+        }
+
         return {
           type: 'function',
           function: {
-            name: tool.name || tool.toolName,
+            name: toolName,
             description: tool.description || '',
             parameters
           }
@@ -223,11 +241,18 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
       if (message.tool_calls) {
         for (const toolCall of message.tool_calls) {
+          let parsedInput: any;
+          try {
+            parsedInput = JSON.parse(toolCall.function.arguments || '{}');
+          } catch (error) {
+            // If parsing fails, use empty object as fallback
+            parsedInput = {};
+          }
           content.push({
             type: 'tool-call',
             toolCallId: toolCall.id,
             toolName: toolCall.function.name,
-            input: JSON.parse(toolCall.function.arguments)
+            input: parsedInput
           });
         }
       }

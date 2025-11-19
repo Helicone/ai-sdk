@@ -774,5 +774,72 @@ describe('HeliconeProvider', () => {
       expect(requestBody.helicone).toBeUndefined();
       expect(requestBody.stream).toBe(true);
     });
+
+    it('should handle advanced tracking scenario matching advanced-tracking.ts example', async () => {
+      const provider = new HeliconeProvider({
+        apiKey: 'test-helicone-key'
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: 'Async/await in JavaScript allows you to write asynchronous code that looks synchronous...'
+              },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 25,
+            completion_tokens: 150,
+            total_tokens: 175
+          }
+        })
+      });
+
+      const sessionId = 'demo-session-' + Date.now();
+      const model = provider.languageModel('gpt-4o', {
+        extraBody: {
+          helicone: {
+            sessionId,
+            userId: 'user-12345',
+            properties: {
+              environment: 'development',
+              feature: 'code-explanation',
+              version: '1.0.0',
+              language: 'typescript',
+            },
+            tags: ['demo', 'tutorial', 'programming'],
+            cache: true,
+          },
+        },
+      });
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Explain how async/await works in JavaScript with a simple example.' }] }],
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+      const requestBody = JSON.parse(fetchCall[1].body);
+
+      // Verify all advanced tracking features are present
+      expect(headers['Helicone-Session-Id']).toBe(sessionId);
+      expect(headers['Helicone-User-Id']).toBe('user-12345');
+      expect(headers['Helicone-Property-environment']).toBe('development');
+      expect(headers['Helicone-Property-feature']).toBe('code-explanation');
+      expect(headers['Helicone-Property-version']).toBe('1.0.0');
+      expect(headers['Helicone-Property-language']).toBe('typescript');
+      expect(headers['Helicone-Property-Tag-demo']).toBe('true');
+      expect(headers['Helicone-Property-Tag-tutorial']).toBe('true');
+      expect(headers['Helicone-Property-Tag-programming']).toBe('true');
+      expect(headers['Helicone-Cache-Enabled']).toBe('true');
+
+      // Verify helicone object is NOT in the body
+      expect(requestBody.helicone).toBeUndefined();
+    });
   });
 });
