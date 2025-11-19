@@ -18,16 +18,19 @@ export interface HeliconeMessage {
 export function convertToHeliconePrompt(
   prompt: LanguageModelV2Prompt
 ): HeliconeMessage[] {
-  return prompt.map((message: any) => {
+  const messages: HeliconeMessage[] = [];
+
+  for (const message of prompt) {
     switch (message.role) {
       case 'system':
-        return {
+        messages.push({
           role: 'system' as const,
-          content: message.content,
-        };
+          content: message.content
+        });
+        break;
 
       case 'user':
-        return {
+        messages.push({
           role: 'user' as const,
           content: message.content.map((part: any) => {
             switch (part.type) {
@@ -38,7 +41,7 @@ export function convertToHeliconePrompt(
                 if (part.data instanceof URL) {
                   return {
                     type: 'image_url',
-                    image_url: { url: part.data.toString() },
+                    image_url: { url: part.data.toString() }
                   };
                 }
                 // Handle base64 or binary data
@@ -46,13 +49,14 @@ export function convertToHeliconePrompt(
                 const mediaType = part.mediaType || 'image/jpeg';
                 return {
                   type: 'image_url',
-                  image_url: { url: `data:${mediaType};base64,${data}` },
+                  image_url: { url: `data:${mediaType};base64,${data}` }
                 };
               default:
                 throw new Error(`Unsupported content type: ${(part as any).type}`);
             }
-          }),
-        };
+          })
+        });
+        break;
 
       case 'assistant':
         const assistantMessage: HeliconeMessage = {
@@ -69,7 +73,7 @@ export function convertToHeliconePrompt(
               default:
                 return '';
             }
-          }).filter(Boolean).join('') || undefined,
+          }).filter(Boolean).join('') || undefined
         };
 
         // Handle tool calls
@@ -80,45 +84,54 @@ export function convertToHeliconePrompt(
             type: 'function' as const,
             function: {
               name: part.toolName,
-              arguments: typeof part.input === 'string' ? part.input : JSON.stringify(part.input),
-            },
+              arguments: typeof part.input === 'string' ? part.input : JSON.stringify(part.input)
+            }
           }));
         }
 
-        return assistantMessage;
+        messages.push(assistantMessage);
+        break;
 
       case 'tool':
-        return {
-          role: 'tool' as const,
-          content: message.content.map((part: any) => {
-            switch (part.type) {
-              case 'tool-result':
-                // Handle the different output types
-                const output = part.output;
-                if (output.type === 'text' || output.type === 'error-text') {
-                  return output.value;
-                } else if (output.type === 'json' || output.type === 'error-json') {
-                  return JSON.stringify(output.value);
-                } else if (output.type === 'content') {
-                  return output.value.map((item: any) => {
-                    if (item.type === 'text') {
-                      return item.text;
-                    } else if (item.type === 'media') {
-                      return `[Media: ${item.mediaType}]`;
-                    }
-                    return '';
-                  }).join('');
+        // Each tool result must be a separate message
+        for (const part of message.content) {
+          if (part.type === 'tool-result') {
+            // Handle the different output types
+            const output = part.output;
+            let content: string;
+
+            if (output.type === 'text' || output.type === 'error-text') {
+              content = output.value;
+            } else if (output.type === 'json' || output.type === 'error-json') {
+              content = JSON.stringify(output.value);
+            } else if (output.type === 'content') {
+              content = output.value.map((item: any) => {
+                if (item.type === 'text') {
+                  return item.text;
+                } else if (item.type === 'media') {
+                  return `[Media: ${item.mediaType}]`;
                 }
-                return JSON.stringify(output);
-              default:
-                throw new Error(`Unsupported tool content type: ${(part as any).type}`);
+                return '';
+              }).join('');
+            } else {
+              content = JSON.stringify(output);
             }
-          }).join('\n'),
-          tool_call_id: message.content[0]?.toolCallId,
-        };
+
+            messages.push({
+              role: 'tool' as const,
+              content,
+              tool_call_id: part.toolCallId
+            });
+          } else {
+            throw new Error(`Unsupported tool content type: ${(part as any).type}`);
+          }
+        }
+        break;
 
       default:
         throw new Error(`Unsupported message role: ${(message as any).role}`);
     }
-  });
+  }
+
+  return messages;
 }
