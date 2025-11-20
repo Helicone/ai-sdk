@@ -24,6 +24,8 @@ npx tsx examples/streaming.ts
 npx tsx examples/advanced-tracking.ts
 npx tsx examples/multiple-providers.ts
 npx tsx examples/tool-calling.ts
+npx tsx examples/agents-json.ts
+npx tsx examples/agents-zod.ts
 ```
 
 ## Available Examples
@@ -47,9 +49,15 @@ Comprehensive example demonstrating how to use tool calling (function calling) w
 - Tool execution tracking
 - Usage statistics
 
+### agents-json.ts and agents-zod.ts
+Agent demos that showcase two ways to define tool schemas:
+- `agents-json.ts` uses `jsonSchema(...)` helpers and a Groq model (`grok-4-fast-non-reasoning`).
+- `agents-zod.ts` uses raw Zod schemas and a different model (`gpt-5-chat-latest`).
+
+Both examples send the same tool definitions; any behavioral differences stem from model choice or prompt/tool-choice settings (e.g., forcing `toolChoice: { type: 'required' }`).
+
 ## Notes
 
 - Make sure you have a valid Helicone API key from [helicone.ai](https://helicone.ai)
 - Some examples may require specific model access (e.g., GPT-4, Claude)
 - All requests are tracked in your Helicone dashboard
-
