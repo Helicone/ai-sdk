@@ -80,6 +80,61 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
     return headers;
   }
 
+  /**
+   * Normalize tool schemas from the AI SDK into JSON Schema for Helicone.
+   * Supports both JSON Schema objects and zod/standard schemas.
+   */
+  private normalizeToolParameters(tool: any): any {
+    const schemaSource = tool?.parameters ?? tool?.inputSchema;
+
+    // Fallback when no schema is provided
+    if (!schemaSource) {
+      return { type: 'object', properties: {} };
+    }
+
+    // Schemas created with jsonSchema/zodSchema already expose .jsonSchema
+    if (schemaSource.jsonSchema) {
+      return schemaSource.jsonSchema;
+    }
+
+    const isZodLike =
+      typeof schemaSource === 'object' &&
+      schemaSource !== null &&
+      !Array.isArray(schemaSource) &&
+      ('_def' in schemaSource || typeof schemaSource.safeParse === 'function');
+
+    // If it already looks like JSON Schema, pass it through untouched
+    const looksLikeJsonSchema =
+      typeof schemaSource === 'object' &&
+      schemaSource !== null &&
+      !Array.isArray(schemaSource) &&
+      !isZodLike &&
+      (schemaSource.type ||
+        schemaSource.properties ||
+        schemaSource.oneOf ||
+        schemaSource.anyOf ||
+        schemaSource.allOf ||
+        schemaSource.$ref);
+
+    if (looksLikeJsonSchema) {
+      return schemaSource;
+    }
+
+    // Otherwise try converting (e.g., zod schema)
+    try {
+      return asSchema(schemaSource).jsonSchema;
+    } catch (error) {
+      // Last resort: coerce to a minimal object schema
+      if (typeof schemaSource === 'object') {
+        return {
+          type: 'object',
+          ...schemaSource
+        };
+      }
+      throw error;
+    }
+  }
+
   private buildRequestBody(options: LanguageModelV2CallOptions): any {
     // Extract helicone metadata and other extraBody fields
     const { helicone, prompt_id, inputs, environment, ...otherExtraBody } = this.extraBody || {};
@@ -132,32 +187,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
     if (options.tools && options.tools.length > 0) {
       body.tools = options.tools.map((tool: any) => {
-        let parameters: any = { type: 'object' };
-
-        // The AI SDK transforms tools before passing them to providers
-        // Try to get proper JSON Schema from the tool
-        if (tool.parameters) {
-          // If we have the original parameters (Zod schema), convert it
-          try {
-            const schema = asSchema(tool.parameters);
-            parameters = schema.jsonSchema;
-          } catch (e) {
-            // If asSchema fails, try to use as-is
-            parameters = typeof tool.parameters === 'object' ? tool.parameters : { type: 'object' };
-          }
-        } else if (tool.inputSchema) {
-          // AI SDK may have already converted to inputSchema
-          // Try to access jsonSchema property if it exists
-          if (tool.inputSchema.jsonSchema) {
-            parameters = tool.inputSchema.jsonSchema;
-          } else if (typeof tool.inputSchema === 'object') {
-            // Ensure we have type: object at minimum
-            parameters = {
-              type: 'object',
-              ...tool.inputSchema
-            };
-          }
-        }
+        const parameters = this.normalizeToolParameters(tool);
 
         // Validate and ensure type is always "object"
         if (!parameters.type || parameters.type === 'None' || typeof parameters.type !== 'string') {

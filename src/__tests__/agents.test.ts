@@ -843,6 +843,58 @@ describe('Agent Integration', () => {
     });
   });
 
+  describe('Agent with Zod Tools', () => {
+    it('should transform zod inputSchema into JSON Schema for the Helicone request', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'test-id',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: 'Zod tool handled'
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { prompt_tokens: 12, completion_tokens: 6, total_tokens: 18 }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+
+      const agent = new Agent({
+        model,
+        system: 'You are a helpful assistant.',
+        stopWhen: stepCountIs(3),
+        tools: {
+          getWeather: tool({
+            description: 'Get the weather for a city',
+            inputSchema: z.object({
+              location: z.string().describe('City name'),
+              unit: z.enum(['celsius', 'fahrenheit']).default('fahrenheit')
+            }),
+            execute: async ({ location }) => ({
+              location,
+              temperature: 72
+            })
+          })
+        }
+      });
+
+      const result = await agent.generate({
+        prompt: 'Hello!'
+      });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const parameters = requestBody.tools[0].function.parameters;
+
+      expect(parameters.type).toBe('object');
+      expect(parameters.properties.location.type).toBe('string');
+      expect(parameters.properties.unit.enum).toEqual(['celsius', 'fahrenheit']);
+      expect(result.text).toBe('Zod tool handled');
+    });
+  });
+
   describe('Agent with Mixed Schema Types', () => {
     it('should note that both jsonSchema and zod schemas are supported', () => {
       // NOTE: The AI SDK supports both jsonSchema (using inputSchema) and zod (using parameters).
@@ -858,4 +910,3 @@ describe('Agent Integration', () => {
     });
   });
 });
-

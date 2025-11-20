@@ -180,6 +180,43 @@ describe('Tool Calling', () => {
       expect(params.required).toEqual(['a', 'b', 'operation']);
     });
 
+    it('should convert Zod inputSchema provided without preprocessing', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'test-id',
+          choices: [{
+            message: { role: 'assistant', content: 'Response', tool_calls: [] },
+            finish_reason: 'stop'
+          }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test' }] }],
+        tools: [{
+          type: 'function',
+          name: 'rawZodTool',
+          description: 'Accepts zod directly',
+          inputSchema: z.object({
+            city: z.string().describe('City name'),
+            country: z.string().optional()
+          })
+        }] as any
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const params = body.tools[0].function.parameters;
+
+      expect(params.type).toBe('object');
+      expect(params.properties.city.type).toBe('string');
+      expect(params.properties.country.type).toBe('string');
+      expect(params.required).toEqual(['city']);
+    });
+
     it('should handle multiple tools', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -1608,4 +1645,3 @@ describe('Tool Calling', () => {
     });
   });
 });
-

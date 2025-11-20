@@ -204,6 +204,14 @@ console.log(result.text);
 
 See `examples/tool-calling.ts` for a complete example.
 
+### Agent Examples (JSON Schema vs Zod)
+
+We ship two agent demos that are functionally identical but highlight different schema styles:
+- `examples/agents-json.ts` uses `jsonSchema(...)` and a Groq model (`grok-4-fast-non-reasoning`).
+- `examples/agents-zod.ts` uses raw Zod schemas and a different model (`gpt-5-chat-latest`).
+
+Both send the same tool definitions through Helicone; any difference in behavior comes from model choice or prompt/tool-choice settings. To make their outputs align, use the same model ID in both, optionally set `toolChoice: { type: 'required' }`, or tighten the system prompt to force tool usage.
+
 ### Prompt Environments
 
 Use different prompt versions for different environments:
