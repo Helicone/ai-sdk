@@ -278,11 +278,21 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
             // If parsing fails, use empty object as fallback
             parsedInput = {};
           }
+
+          // Extract Google thought signature if present
+          const googleMetadata = toolCall.extra_content?.google;
+          const providerMetadata = googleMetadata?.thought_signature ? {
+            google: {
+              thought_signature: googleMetadata.thought_signature
+            }
+          } : undefined;
+
           content.push({
             type: 'tool-call',
             toolCallId: toolCall.id,
             toolName: toolCall.function.name,
-            input: parsedInput
+            input: parsedInput,
+            ...(providerMetadata && { providerMetadata })
           });
         }
       }
@@ -336,6 +346,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
         name: string;
         arguments: string;
         completed: boolean;
+        providerMetadata?: any;
       }> = new Map();
 
       // Map tool call index to ID for streaming chunks
@@ -362,7 +373,8 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                       type: 'tool-call',
                       toolCallId: toolCall.id,
                       toolName: toolCall.name,
-                      input: toolCall.arguments
+                      input: toolCall.arguments,
+                      ...(toolCall.providerMetadata && { providerMetadata: toolCall.providerMetadata })
                     } as LanguageModelV2StreamPart);
 
                     toolCall.completed = true;
@@ -420,7 +432,8 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                           type: 'tool-call',
                           toolCallId: toolCall.id,
                           toolName: toolCall.name,
-                          input: toolCall.arguments
+                          input: toolCall.arguments,
+                          ...(toolCall.providerMetadata && { providerMetadata: toolCall.providerMetadata })
                         } as LanguageModelV2StreamPart);
 
                         toolCall.completed = true;
@@ -468,6 +481,16 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                           completed: false
                         };
                         toolCalls.set(toolId, trackedCall);
+                      }
+
+                      // Extract Google thought signature if present
+                      const googleMetadata = toolCall.extra_content?.google;
+                      if (googleMetadata?.thought_signature && !trackedCall.providerMetadata) {
+                        trackedCall.providerMetadata = {
+                          google: {
+                            thought_signature: googleMetadata.thought_signature
+                          }
+                        };
                       }
 
                       // Send tool-input-start when we get the tool name

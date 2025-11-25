@@ -79,14 +79,29 @@ export function convertToHeliconePrompt(
         // Handle tool calls
         const toolCalls = message.content.filter((part: any) => part.type === 'tool-call');
         if (toolCalls.length > 0) {
-          assistantMessage.tool_calls = toolCalls.map((part: any) => ({
-            id: part.toolCallId,
-            type: 'function' as const,
-            function: {
-              name: part.toolName,
-              arguments: typeof part.input === 'string' ? part.input : JSON.stringify(part.input)
+          assistantMessage.tool_calls = toolCalls.map((part: any, index: number) => {
+            const toolCall: any = {
+              id: part.toolCallId,
+              type: 'function' as const,
+              function: {
+                name: part.toolName,
+                arguments: typeof part.input === 'string' ? part.input : JSON.stringify(part.input)
+              }
+            };
+
+            // Include Google thought signature if present
+            // For sequential calls: each function call gets its signature
+            // For parallel calls: only the first call gets the signature
+            if (part.providerMetadata?.google?.thought_signature) {
+              toolCall.extra_content = {
+                google: {
+                  thought_signature: part.providerMetadata.google.thought_signature
+                }
+              };
             }
-          }));
+
+            return toolCall;
+          });
         }
 
         messages.push(assistantMessage);
