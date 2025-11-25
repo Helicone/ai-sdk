@@ -14,7 +14,7 @@ async function main() {
 
   // Create an Agent with Helicone model
   const weatherAgent = new Agent({
-    model: helicone("gemini-3-pro-preview", {
+    model: helicone("claude-4.5-haiku", {
       extraBody: {
         helicone: {
           sessionId: "agent-demo-" + Date.now(),
