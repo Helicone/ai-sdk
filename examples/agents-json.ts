@@ -14,7 +14,7 @@ async function main() {
 
   // Create an Agent with Helicone model
   const weatherAgent = new Agent({
-    model: helicone("grok-4-fast-non-reasoning", {
+    model: helicone("claude-4.5-haiku", {
       extraBody: {
         helicone: {
           sessionId: "agent-demo-" + Date.now(),
@@ -26,8 +26,6 @@ async function main() {
         },
       },
     }),
-    system:
-      "You are a helpful weather assistant. When asked about weather, use the getWeather tool to provide accurate information.",
     stopWhen: stepCountIs(5),
     tools: {
       getWeather: tool({
@@ -62,9 +60,9 @@ async function main() {
           const result = {
             location,
             temperature: temp,
-            unit: unit || 'fahrenheit',
+            unit: unit || "fahrenheit",
             conditions,
-            description: `It's ${conditions} in ${location} with a temperature of ${temp}°${unit?.charAt(0).toUpperCase() || 'F'}.`
+            description: `It's ${conditions} in ${location} with a temperature of ${temp}°${unit?.charAt(0).toUpperCase() || "F"}.`,
           };
 
           console.log(`Result: ${JSON.stringify(result)}`);
@@ -99,7 +97,7 @@ async function main() {
             temperature,
             windSpeed,
             windChill: Math.round(windChill),
-            description: `With a temperature of ${temperature}°F and wind speed of ${windSpeed} mph, the wind chill feels like ${Math.round(windChill)}°F.`
+            description: `With a temperature of ${temperature}°F and wind speed of ${windSpeed} mph, the wind chill feels like ${Math.round(windChill)}°F.`,
           };
 
           console.log(`Result: ${JSON.stringify(result)}`);
@@ -114,7 +112,7 @@ async function main() {
 
     const result = await weatherAgent.generate({
       prompt:
-        "What is the weather like in San Francisco, CA and New York, NY? Also, if the wind speed in San Francisco is 15 mph, what would the wind chill feel like?"
+        "You are a helpful weather assistant. When asked about weather, use the getWeather tool to provide accurate information.\n\nWhat is the weather like in San Francisco, CA and New York, NY? Also, if the wind speed in San Francisco is 15 mph, what would the wind chill feel like?"
     });
 
     console.log("=== Agent Response ===");
