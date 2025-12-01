@@ -22,7 +22,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         tools: {}
       });
 
@@ -47,7 +47,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         tools: {
           testTool
         }
@@ -62,7 +62,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {}
       });
@@ -85,7 +85,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         tools: {}
       });
 
@@ -139,7 +139,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a weather assistant.',
+        instructions: 'You are a weather assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           getWeather: tool({
@@ -228,7 +228,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a weather assistant.',
+        instructions: 'You are a weather assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           getWeather: tool({
@@ -314,7 +314,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a weather assistant.',
+        instructions: 'You are a weather assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           getWeather: tool({
@@ -388,7 +388,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a weather assistant.',
+        instructions: 'You are a weather assistant.',
         stopWhen: stepCountIs(1),
         tools: {
           getWeather: tool({
@@ -454,7 +454,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         tools: {}
       });
 
@@ -526,7 +526,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           testTool: tool({
@@ -607,7 +607,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           testTool: tool({
@@ -678,7 +678,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           testTool: tool({
@@ -724,7 +724,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         tools: {}
       });
 
@@ -776,7 +776,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           errorTool: tool({
@@ -830,7 +830,7 @@ describe('Agent Integration', () => {
         const model = provider.languageModel(modelId);
         const agent = new Agent({
           model,
-          system: 'You are a helpful assistant.',
+          instructions: 'You are a helpful assistant.',
           tools: {}
         });
 
@@ -864,7 +864,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        system: 'You are a helpful assistant.',
+        instructions: 'You are a helpful assistant.',
         stopWhen: stepCountIs(3),
         tools: {
           getWeather: tool({
