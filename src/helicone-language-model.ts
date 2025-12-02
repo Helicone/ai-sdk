@@ -355,6 +355,9 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       const textDecoder = new TextDecoder();
       const reader = response.body!.getReader();
 
+      let textStarted = false;
+      let textId: string;
+
       const processedStream = new ReadableStream<LanguageModelV2StreamPart>({
         async start(controller) {
           try {
@@ -444,12 +447,23 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
                   const delta = choice.delta;
                   if (!delta) continue;
 
-                  // Transform text content to text-delta events
+                  // Handle text content
                   if (delta.content) {
+                    // Start text streaming if not already started
+                    if (!textStarted) {
+                      textId = parsed.id;
+                      controller.enqueue({
+                        type: 'text-start',
+                        id: textId
+                      } as LanguageModelV2StreamPart);
+                      textStarted = true;
+                    }
+
+                    // Emit text delta with the same ID
                     controller.enqueue({
                       type: 'text-delta',
-                      delta: delta.content,
-                      id: 'text-0'
+                      id: textId,
+                      delta: delta.content
                     } as LanguageModelV2StreamPart);
                   }
 

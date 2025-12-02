@@ -1497,6 +1497,7 @@ describe('Tool Calling', () => {
       const eventTypes = chunks.map(chunk => chunk.type);
 
       // Should have all expected event types (order may vary due to streaming chunks)
+      expect(eventTypes).toContain('text-start');
       expect(eventTypes).toContain('text-delta');
       expect(eventTypes).toContain('tool-input-start');
       expect(eventTypes).toContain('tool-input-delta');
@@ -1504,8 +1505,9 @@ describe('Tool Calling', () => {
       expect(eventTypes).toContain('tool-call');
       expect(eventTypes).toContain('finish');
 
-      // Verify text content comes first and finish comes last
-      expect(eventTypes[0]).toBe('text-delta');
+      // Verify text streaming starts correctly and finish comes last
+      expect(eventTypes[0]).toBe('text-start');
+      expect(eventTypes[1]).toBe('text-delta');
       expect(eventTypes[eventTypes.length - 1]).toBe('finish');
 
       // Verify tool call was completed correctly
