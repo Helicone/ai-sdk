@@ -27,7 +27,6 @@ async function testStreamText() {
 
   console.log("📡 Consuming textStream:");
 
-  // This should work according to AI SDK docs
   for await (const textChunk of result.textStream) {
     process.stdout.write(textChunk);
   }
