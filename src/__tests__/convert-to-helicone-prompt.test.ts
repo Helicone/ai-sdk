@@ -145,6 +145,7 @@ describe('convertToHeliconePrompt', () => {
         role: 'tool',
         content: 'Sunny, 72°F',
         tool_call_id: 'call-123',
+        name: 'getWeather',
       },
     ]);
   });

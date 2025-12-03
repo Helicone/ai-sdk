@@ -30,7 +30,7 @@ const myAgent = new Agent({
       },
     },
   }),
-  instructions: "You are a helpful assistant. Keep responses concise and friendly.",
+  system: "You are a helpful assistant. Keep responses concise and friendly.",
   stopWhen: stepCountIs(3),
 });
 

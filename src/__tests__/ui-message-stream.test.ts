@@ -435,7 +435,7 @@ describe('UI Message Stream Response', () => {
             },
           },
         }),
-        instructions: 'You are a helpful assistant. Keep responses concise and friendly.',
+        system: 'You are a helpful assistant. Keep responses concise and friendly.',
         stopWhen: stepCountIs(3),
       });
 
@@ -523,7 +523,7 @@ describe('UI Message Stream Response', () => {
             },
           },
         }),
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         stopWhen: stepCountIs(3),
       });
 

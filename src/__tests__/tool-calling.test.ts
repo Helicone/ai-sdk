@@ -308,7 +308,7 @@ describe('Tool Calling', () => {
         type: 'tool-call',
         toolCallId: 'call_1',
         toolName: 'getWeather',
-        input: { location: 'San Francisco' }
+        input: '{"location":"San Francisco"}'
       });
     });
 
@@ -1644,6 +1644,202 @@ describe('Tool Calling', () => {
       const finishChunk = chunks.find(chunk => chunk.type === 'finish');
       expect(finishChunk).toBeDefined();
       expect(finishChunk!.finishReason).toBe('stop');
+    });
+  });
+
+  describe('Agent Class Compatibility', () => {
+    it('should return tool input as string format for Agent class compatibility', async () => {
+      // This test ensures that tool inputs are returned as strings, not parsed objects
+      // This is required for AI SDK v5.0.93 Agent class compatibility
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'test-agent-id',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{
+                id: 'call_agent_test',
+                type: 'function',
+                function: {
+                  name: 'explore_knowledge_base',
+                  arguments: '{"query":"CBD oil availability and products"}'
+                }
+              }]
+            },
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+
+      const result = await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test Agent compatibility' }] }],
+        tools: [{
+          type: 'function',
+          name: 'explore_knowledge_base',
+          description: 'Search knowledge base',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Search query' }
+            },
+            required: ['query']
+          }
+        }]
+      });
+
+      expect(result.finishReason).toBe('tool-calls');
+      expect(result.content).toHaveLength(1);
+
+      const toolCall = result.content[0] as any;
+      expect(toolCall.type).toBe('tool-call');
+      expect(toolCall.toolCallId).toBe('call_agent_test');
+      expect(toolCall.toolName).toBe('explore_knowledge_base');
+
+      // Critical: input should be a string, not a parsed object
+      // This prevents "toolCall.input.trim is not a function" errors
+      expect(typeof toolCall.input).toBe('string');
+      expect(toolCall.input).toBe('{"query":"CBD oil availability and products"}');
+
+      // Verify it's valid JSON that can be parsed
+      expect(() => JSON.parse(toolCall.input)).not.toThrow();
+      const parsedInput = JSON.parse(toolCall.input);
+      expect(parsedInput.query).toBe('CBD oil availability and products');
+    });
+
+    it('should handle streaming tool calls with string inputs for Agent compatibility', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-agent-stream',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: 'call_agent_stream',
+                type: 'function',
+                function: {
+                  name: 'check_workflow',
+                  arguments: '{"action_intent":"return order"}'
+                }
+              }]
+            },
+            finish_reason: null
+          }]
+        },
+        {
+          id: 'chatcmpl-agent-stream',
+          object: 'chat.completion.chunk',
+          choices: [{
+            delta: {},
+            finish_reason: 'tool_calls'
+          }]
+        }
+      ];
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          streamChunks.forEach(chunk => {
+            const data = `data: ${JSON.stringify(chunk)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          });
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        body: stream
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+      const streamResult = await model.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'I want to return my order' }] }],
+        tools: [{
+          type: 'function',
+          name: 'check_workflow',
+          description: 'Check workflow availability',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              action_intent: { type: 'string', description: 'Action description' }
+            },
+            required: ['action_intent']
+          }
+        }]
+      });
+
+      const chunks: any[] = [];
+      const reader = streamResult.stream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      const toolCallChunk = chunks.find(chunk => chunk.type === 'tool-call');
+      expect(toolCallChunk).toBeDefined();
+      expect(toolCallChunk.toolCallId).toBe('call_agent_stream');
+      expect(toolCallChunk.toolName).toBe('check_workflow');
+
+      // Critical: streaming tool calls should also return string inputs
+      expect(typeof toolCallChunk.input).toBe('string');
+      expect(toolCallChunk.input).toBe('{"action_intent":"return order"}');
+    });
+
+    it('should handle malformed tool arguments gracefully for Agent compatibility', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'test-malformed',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{
+                id: 'call_malformed',
+                type: 'function',
+                function: {
+                  name: 'test_tool',
+                  arguments: '' // Empty arguments
+                }
+              }]
+            },
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+
+      const result = await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test malformed args' }] }],
+        tools: [{
+          type: 'function',
+          name: 'test_tool',
+          description: 'Test tool',
+          inputSchema: { type: 'object', properties: {} }
+        }]
+      });
+
+      const toolCall = result.content[0] as any;
+      expect(toolCall.type).toBe('tool-call');
+
+      // Should fallback to '{}' for empty arguments
+      expect(typeof toolCall.input).toBe('string');
+      expect(toolCall.input).toBe('{}');
     });
   });
 });
