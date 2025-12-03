@@ -70,7 +70,7 @@ If you'd like to select your own provider, you can do so by passing the provider
 
 ```typescript
 const result = await generateText({
-  helicone('claude-4.5-sonnet/anthropic');
+  model: helicone('claude-4.5-sonnet/anthropic'),
   prompt: 'Write a haiku about AI'
 });
 
@@ -92,7 +92,7 @@ const helicone = createHelicone({ apiKey: 'your-helicone-api-key' });
 
 const result = await generateText({
   model: helicone('gpt-4o', {
-    promptId: 'sg45wqc' // Get this from your Helicone dashboard after saving your prompt,
+    promptId: 'sg45wqc', // Get this from your Helicone dashboard after saving your prompt
     inputs: {
       customer_name: 'Sarah Johnson',
       issue_type: 'billing',
@@ -188,7 +188,7 @@ const result = await generateText({
   tools: {
     getWeather: tool({
       description: 'Get weather for a location',
-      parameters: z.object({
+      inputSchema: z.object({
         location: z.string().describe('The city name')
       }),
       execute: async (args) => {
@@ -207,8 +207,8 @@ See `examples/tool-calling.ts` for a complete example.
 ### Agent Examples (JSON Schema vs Zod)
 
 We ship two agent demos that are functionally identical but highlight different schema styles:
-- `examples/agents-json.ts` uses `jsonSchema(...)` and a Groq model (`grok-4-fast-non-reasoning`).
-- `examples/agents-zod.ts` uses raw Zod schemas and a different model (`gpt-5-chat-latest`).
+- `examples/agents-json.ts` uses `jsonSchema(...)` helpers with a Claude model (`claude-4.5-haiku`).
+- `examples/agents-zod.ts` uses raw Zod schemas with a different model (`gpt-5-chat-latest`).
 
 Both send the same tool definitions through Helicone; any difference in behavior comes from model choice or prompt/tool-choice settings. To make their outputs align, use the same model ID in both, optionally set `toolChoice: { type: 'required' }`, or tighten the system prompt to force tool usage.
 
