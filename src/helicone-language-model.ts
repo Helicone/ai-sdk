@@ -271,14 +271,6 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
 
       if (message.tool_calls) {
         for (const toolCall of message.tool_calls) {
-          let parsedInput: any;
-          try {
-            parsedInput = JSON.parse(toolCall.function.arguments || '{}');
-          } catch (error) {
-            // If parsing fails, use empty object as fallback
-            parsedInput = {};
-          }
-
           // Extract Google thought signature if present
           const googleMetadata = toolCall.extra_content?.google;
           const providerMetadata = googleMetadata?.thought_signature ? {
@@ -291,7 +283,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
             type: 'tool-call',
             toolCallId: toolCall.id,
             toolName: toolCall.function.name,
-            input: parsedInput,
+            input: toolCall.function.arguments || '{}',
             ...(providerMetadata && { providerMetadata })
           });
         }

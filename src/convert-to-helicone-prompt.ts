@@ -85,7 +85,7 @@ export function convertToHeliconePrompt(
               type: 'function' as const,
               function: {
                 name: part.toolName,
-                arguments: typeof part.input === 'string' ? part.input : JSON.stringify(part.input)
+                arguments: JSON.stringify(part.input)
               }
             };
 
@@ -135,7 +135,8 @@ export function convertToHeliconePrompt(
             messages.push({
               role: 'tool' as const,
               content,
-              tool_call_id: part.toolCallId
+              tool_call_id: part.toolCallId,
+              name: part.toolName
             });
           } else {
             throw new Error(`Unsupported tool content type: ${(part as any).type}`);

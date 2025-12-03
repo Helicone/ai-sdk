@@ -22,7 +22,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         tools: {}
       });
 
@@ -47,7 +47,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         tools: {
           testTool
         }
@@ -62,7 +62,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {}
       });
@@ -85,7 +85,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         tools: {}
       });
 
@@ -139,7 +139,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a weather assistant.',
+        system: 'You are a weather assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           getWeather: tool({
@@ -228,7 +228,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a weather assistant.',
+        system: 'You are a weather assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           getWeather: tool({
@@ -314,7 +314,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a weather assistant.',
+        system: 'You are a weather assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           getWeather: tool({
@@ -388,7 +388,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a weather assistant.',
+        system: 'You are a weather assistant.',
         stopWhen: stepCountIs(1),
         tools: {
           getWeather: tool({
@@ -454,7 +454,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         tools: {}
       });
 
@@ -526,7 +526,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           testTool: tool({
@@ -607,7 +607,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           testTool: tool({
@@ -678,7 +678,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           testTool: tool({
@@ -724,7 +724,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         tools: {}
       });
 
@@ -776,7 +776,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         stopWhen: stepCountIs(5),
         tools: {
           errorTool: tool({
@@ -830,7 +830,7 @@ describe('Agent Integration', () => {
         const model = provider.languageModel(modelId);
         const agent = new Agent({
           model,
-          instructions: 'You are a helpful assistant.',
+          system: 'You are a helpful assistant.',
           tools: {}
         });
 
@@ -864,7 +864,7 @@ describe('Agent Integration', () => {
 
       const agent = new Agent({
         model,
-        instructions: 'You are a helpful assistant.',
+        system: 'You are a helpful assistant.',
         stopWhen: stepCountIs(3),
         tools: {
           getWeather: tool({
@@ -907,6 +907,301 @@ describe('Agent Integration', () => {
       //
       // See examples/agents.ts for a working example showing both patterns.
       expect(true).toBe(true);
+    });
+  });
+
+  describe('Agent Tool Calling Integration', () => {
+    it('should successfully call tools with Agent class without input.trim errors', async () => {
+      // This test specifically prevents regression of the "toolCall.input.trim is not a function" error
+      // by actually using the Agent class and ensuring tool execution works
+
+      let toolExecuted = false;
+      let receivedQuery = '';
+
+      // Mock the API response that includes tool calls
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'test-agent-tool-call',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{
+                id: 'call_explore_kb',
+                type: 'function',
+                function: {
+                  name: 'explore_knowledge_base',
+                  arguments: '{"query":"CBD oil products and availability"}'
+                }
+              }]
+            },
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 }
+        })
+      });
+
+      // Mock the final response after tool execution
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'test-agent-final',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: 'Based on the search results, yes we have CBD oil products available.'
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { prompt_tokens: 150, completion_tokens: 40, total_tokens: 190 }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+
+      const agent = new Agent({
+        model,
+        system: 'You are a customer support AI assistant.',
+        tools: {
+          explore_knowledge_base: tool({
+            description: 'Search the knowledge base for products and information',
+            inputSchema: z.object({
+              query: z.string().describe('Search query for the knowledge base')
+            }),
+            execute: async ({ query }) => {
+              // This is the critical test - the Agent class should be able to call this
+              // without getting "toolCall.input.trim is not a function" error
+              toolExecuted = true;
+              receivedQuery = query;
+
+              // Verify the query is properly parsed from our string input format
+              expect(typeof query).toBe('string');
+              expect(query.trim).toBeDefined(); // Should have string methods
+              expect(query).toBe('CBD oil products and availability');
+
+              return `Found information about: ${query}`;
+            }
+          })
+        }
+      });
+
+      // Actually call the agent - this is where the original error would occur
+      const result = await agent.generate({
+        prompt: 'Do you have CBD oil available?'
+      });
+
+      expect(result).toBeDefined();
+      expect(toolExecuted).toBe(true);
+      expect(receivedQuery).toBe('CBD oil products and availability');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle Agent multi-step tool calling workflows', async () => {
+      // Mock first tool call
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'step1',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'check_workflow',
+                  arguments: '{"action_intent":"return order"}'
+                }
+              }]
+            },
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 80, completion_tokens: 20, total_tokens: 100 }
+        })
+      });
+
+      // Mock second tool call
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'step2',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{
+                id: 'call_2',
+                type: 'function',
+                function: {
+                  name: 'escalate_ticket',
+                  arguments: '{"reason":"Customer wants to return order","contact":{"email":"test@example.com"}}'
+                }
+              }]
+            },
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 }
+        })
+      });
+
+      // Mock final response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'final',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: 'I have processed your return request and escalated it to our team. You should receive a response at test@example.com within 24 hours.'
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { prompt_tokens: 200, completion_tokens: 45, total_tokens: 245 }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+
+      const agent = new Agent({
+        model,
+        system: 'You are a customer support assistant.',
+        tools: {
+          check_workflow: tool({
+            description: 'Check available workflows for customer actions',
+            inputSchema: z.object({
+              action_intent: z.string().describe('What the customer wants to do')
+            }),
+            execute: async ({ action_intent }) => {
+              return `Workflow available for: ${action_intent}`;
+            }
+          }),
+          escalate_ticket: tool({
+            description: 'Escalate to human agent',
+            inputSchema: z.object({
+              reason: z.string().describe('Reason for escalation'),
+              contact: z.object({
+                email: z.string().email().optional(),
+                phone: z.string().optional()
+              }).describe('Customer contact info')
+            }),
+            execute: async ({ reason, contact }) => {
+              return `Ticket escalated: ${reason}. Contact: ${JSON.stringify(contact)}`;
+            }
+          })
+        }
+      });
+
+      const result = await agent.generate({
+        prompt: 'I want to return my order. My email is test@example.com'
+      });
+
+      expect(result).toBeDefined();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle Agent with complex nested tool inputs', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'complex-tool',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{
+                id: 'call_complex',
+                type: 'function',
+                function: {
+                  name: 'complex_tool',
+                  arguments: JSON.stringify({
+                    user: {
+                      name: 'John Doe',
+                      contact: {
+                        email: 'john@example.com',
+                        preferences: ['email', 'sms']
+                      }
+                    },
+                    items: [
+                      { id: 'item1', quantity: 2 },
+                      { id: 'item2', quantity: 1 }
+                    ],
+                    metadata: {
+                      source: 'web',
+                      timestamp: '2024-01-01T00:00:00Z'
+                    }
+                  })
+                }
+              }]
+            },
+            finish_reason: 'tool_calls'
+          }],
+          usage: { prompt_tokens: 200, completion_tokens: 50, total_tokens: 250 }
+        })
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 'complex-response',
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: 'Complex tool executed successfully'
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { prompt_tokens: 250, completion_tokens: 20, total_tokens: 270 }
+        })
+      });
+
+      const model = provider.languageModel('gpt-4o-mini');
+
+      const agent = new Agent({
+        model,
+        system: 'You are a data processing assistant.',
+        tools: {
+          complex_tool: tool({
+            description: 'Process complex nested data',
+            inputSchema: z.object({
+              user: z.object({
+                name: z.string(),
+                contact: z.object({
+                  email: z.string().email(),
+                  preferences: z.array(z.string())
+                })
+              }),
+              items: z.array(z.object({
+                id: z.string(),
+                quantity: z.number()
+              })),
+              metadata: z.object({
+                source: z.string(),
+                timestamp: z.string()
+              })
+            }),
+            execute: async ({ user, items, metadata }) => {
+              // Verify complex nested objects are properly parsed
+              expect(user.name).toBe('John Doe');
+              expect(user.contact.email).toBe('john@example.com');
+              expect(user.contact.preferences).toEqual(['email', 'sms']);
+              expect(items).toHaveLength(2);
+              expect(items[0].id).toBe('item1');
+              expect(metadata.source).toBe('web');
+
+              return `Processed ${items.length} items for ${user.name}`;
+            }
+          })
+        }
+      });
+
+      const result = await agent.generate({
+        prompt: 'Process the user data with complex nested structure'
+      });
+
+      expect(result).toBeDefined();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 });

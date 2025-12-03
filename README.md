@@ -70,7 +70,7 @@ If you'd like to select your own provider, you can do so by passing the provider
 
 ```typescript
 const result = await generateText({
-  helicone('claude-4.5-sonnet/anthropic');
+  model: helicone('claude-4.5-sonnet/anthropic'),
   prompt: 'Write a haiku about AI'
 });
 
@@ -92,7 +92,7 @@ const helicone = createHelicone({ apiKey: 'your-helicone-api-key' });
 
 const result = await generateText({
   model: helicone('gpt-4o', {
-    promptId: 'sg45wqc' // Get this from your Helicone dashboard after saving your prompt,
+    promptId: 'sg45wqc', // Get this from your Helicone dashboard after saving your prompt
     inputs: {
       customer_name: 'Sarah Johnson',
       issue_type: 'billing',
@@ -188,7 +188,7 @@ const result = await generateText({
   tools: {
     getWeather: tool({
       description: 'Get weather for a location',
-      parameters: z.object({
+      inputSchema: z.object({
         location: z.string().describe('The city name')
       }),
       execute: async (args) => {
@@ -207,8 +207,8 @@ See `examples/tool-calling.ts` for a complete example.
 ### Agent Examples (JSON Schema vs Zod)
 
 We ship two agent demos that are functionally identical but highlight different schema styles:
-- `examples/agents-json.ts` uses `jsonSchema(...)` and a Groq model (`grok-4-fast-non-reasoning`).
-- `examples/agents-zod.ts` uses raw Zod schemas and a different model (`gpt-5-chat-latest`).
+- `examples/agents-json.ts` uses `jsonSchema(...)` helpers with a Claude model (`claude-4.5-haiku`).
+- `examples/agents-zod.ts` uses raw Zod schemas with a different model (`gpt-5-chat-latest`).
 
 Both send the same tool definitions through Helicone; any difference in behavior comes from model choice or prompt/tool-choice settings. To make their outputs align, use the same model ID in both, optionally set `toolChoice: { type: 'required' }`, or tighten the system prompt to force tool usage.
 
@@ -259,6 +259,59 @@ for await (const chunk of result.textStream) {
 ```
 
 See `examples/prompts.ts` for comprehensive prompt integration examples.
+
+## Examples
+
+This package includes comprehensive examples demonstrating various features and use cases. All examples can be run using `tsx`:
+
+```bash
+npx tsx examples/<example-name>.ts
+```
+
+### Available Examples
+
+#### `basic.ts`
+Simple text generation example showing basic usage of the Helicone provider with `generateText`.
+
+#### `streaming.ts`
+Demonstrates streaming responses from the model using `streamText`, including both `textStream` and `toUIMessageStreamResponse` methods.
+
+#### `advanced-tracking.ts`
+Shows how to use advanced tracking features like session IDs, user IDs, custom properties, tags, and caching for better observability.
+
+#### `multiple-providers.ts`
+Example of using multiple AI providers (e.g., Novita DeepSeek and Anthropic Claude) through Helicone's unified gateway, comparing responses from different models.
+
+#### `tool-calling.ts`
+Comprehensive example demonstrating how to use tool calling (function calling) with `generateText`. Includes weather lookup and mathematical calculation tools, showing how tool definitions are sent and tool call requests are received.
+
+#### `stream-tool-calling.ts`
+Demonstrates streaming with tool calling using `streamText`. Shows how to handle tool calls and results in a streaming context, including processing `fullStream` chunks for text deltas, tool calls, and tool results.
+
+#### `streamText-tools-properties.ts`
+Example showing tool calling with `streamText` and how to access tool properties in the streaming response, useful for debugging and monitoring tool execution.
+
+#### `prompts.ts`
+Comprehensive examples of Helicone prompts integration, including:
+- Basic prompt usage with inputs
+- Streaming with prompts
+- Multiple environment configurations (development, staging, production)
+- Prompts combined with tools
+- Regular messages (without prompts) for comparison
+
+#### `agent-tools.ts`
+Demonstrates using the experimental `Agent` class with Helicone, showing a customer support agent with multiple tools (knowledge base search, workflow checking, ticket escalation) and detailed step-by-step execution tracking.
+
+#### `agents-json.ts`
+Agent demo using `jsonSchema(...)` helpers to define tool schemas. Shows how to structure agent tools using JSON Schema format.
+
+#### `agents-zod.ts`
+Agent demo using raw Zod schemas to define tool schemas. Functionally similar to `agents-json.ts` but demonstrates the Zod schema approach.
+
+#### `validate-ui-messages.ts`
+Example demonstrating how to use `validateUIMessages` with Helicone provider, commonly used in API routes. Shows how to handle AI SDK v6 UI message format with `parts` array, including validation, conversation history, and edge cases.
+
+For more details, see the [examples README](examples/README.md).
 
 ## BYOK - Bring your own key
 
