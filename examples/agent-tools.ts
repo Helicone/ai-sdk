@@ -20,7 +20,7 @@
 
   // Create agent with tools
   const agent = new Agent({
-    model: helicone("gpt-5-chat-latest"), // Use a known working model first
+    model: helicone("gemini-3-pro-preview"),
     system:
       "You are a customer support AI assistant. Your goal is to assist customers with their questions and issues. You are also able to use tools to help you with your tasks.",
     tools: {
