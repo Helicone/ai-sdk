@@ -22,6 +22,7 @@ type HeliconeLanguageModelConfig = {
 
 export class HeliconeLanguageModel implements LanguageModelV2 {
   readonly specificationVersion = 'v2' as const;
+  readonly defaultObjectGenerationMode = 'tool' as const;
   readonly supportedUrls: Record<string, RegExp[]> = {};
   readonly provider: string = 'helicone';
   readonly modelId: string;
@@ -152,6 +153,23 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       ...(options.seed != null && { seed: options.seed }),
       ...otherExtraBody
     };
+
+    // Handle structured output
+    if (options.responseFormat?.type === 'json') {
+      body.response_format = options.responseFormat.schema != null
+        ? {
+            type: 'json_schema',
+            json_schema: {
+              schema: options.responseFormat.schema,
+              strict: true,
+              name: options.responseFormat.name ?? 'response',
+              ...(options.responseFormat.description && {
+                description: options.responseFormat.description,
+              }),
+            },
+          }
+        : { type: 'json_object' };
+    }
 
     // Handle Helicone prompt integration
     if (prompt_id) {

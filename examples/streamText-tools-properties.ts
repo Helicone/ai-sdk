@@ -13,17 +13,17 @@ async function main() {
   console.log(`Testing tool calling with Heliconer}...\n`);
 
   const model = helicone("gpt-4o-mini", {
-          extraBody: {
-            helicone: {
-              sessionId: "tool-calling-demo-" + Date.now(),
-              properties: {
-                example: "tool-calling",
-                feature: "function-tools",
-              },
-              tags: ["tools", "demo"],
-            },
-          },
-        });
+    extraBody: {
+      helicone: {
+        sessionId: "tool-calling-demo-" + Date.now(),
+        properties: {
+          example: "tool-calling",
+          feature: "function-tools",
+        },
+        tags: ["tools", "demo"],
+      },
+    },
+  });
 
   const result = streamText({
     model,
