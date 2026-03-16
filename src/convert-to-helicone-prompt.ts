@@ -2,7 +2,8 @@ import { LanguageModelV2Prompt } from '@ai-sdk/provider';
 
 export interface HeliconeMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+  content?: string | Array<{ type: string; text?: string; image_url?: { url: string }; cache_control?: { type: string; ttl?: string } }>;
+  cache_control?: { type: string; ttl?: string };
   tool_calls?: Array<{
     id: string;
     type: 'function';
@@ -15,6 +16,19 @@ export interface HeliconeMessage {
   name?: string;
 }
 
+/**
+ * Extract cache_control from AI SDK providerOptions.
+ * Maps providerOptions.anthropic.cacheControl to the cache_control
+ * format that the Helicone gateway expects.
+ */
+function extractCacheControl(
+  providerOptions: Record<string, any> | undefined
+): { type: string; ttl?: string } | undefined {
+  const cacheControl = providerOptions?.anthropic?.cacheControl;
+  if (!cacheControl || typeof cacheControl !== 'object') return undefined;
+  return cacheControl as { type: string; ttl?: string };
+}
+
 export function convertToHeliconePrompt(
   prompt: LanguageModelV2Prompt
 ): HeliconeMessage[] {
@@ -22,20 +36,40 @@ export function convertToHeliconePrompt(
 
   for (const message of prompt) {
     switch (message.role) {
-      case 'system':
-        messages.push({
+      case 'system': {
+        const msg: HeliconeMessage = {
           role: 'system' as const,
           content: message.content
-        });
+        };
+
+        // Preserve cache_control from providerOptions
+        const cacheControl = extractCacheControl(
+          (message as any).providerOptions
+        );
+        if (cacheControl) {
+          msg.cache_control = cacheControl;
+        }
+
+        messages.push(msg);
         break;
+      }
 
       case 'user':
         messages.push({
           role: 'user' as const,
           content: message.content.map((part: any) => {
             switch (part.type) {
-              case 'text':
-                return { type: 'text', text: part.text };
+              case 'text': {
+                const block: any = { type: 'text', text: part.text };
+
+                // Preserve cache_control from providerOptions on content blocks
+                const cacheControl = extractCacheControl(part.providerOptions);
+                if (cacheControl) {
+                  block.cache_control = cacheControl;
+                }
+
+                return block;
+              }
               case 'file':
                 // Handle file content (including images)
                 if (part.data instanceof URL) {
@@ -58,7 +92,7 @@ export function convertToHeliconePrompt(
         });
         break;
 
-      case 'assistant':
+      case 'assistant': {
         const assistantMessage: HeliconeMessage = {
           role: 'assistant' as const,
           content: message.content.map((part: any) => {
@@ -106,6 +140,7 @@ export function convertToHeliconePrompt(
 
         messages.push(assistantMessage);
         break;
+      }
 
       case 'tool':
         // Each tool result must be a separate message

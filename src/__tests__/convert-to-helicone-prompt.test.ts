@@ -168,6 +168,81 @@ describe('convertToHeliconePrompt', () => {
     ]);
   });
 
+  it('should preserve cache_control on system messages from providerOptions', () => {
+    const prompt: LanguageModelV2Prompt = [
+      {
+        role: 'system',
+        content: 'You are a helpful assistant.',
+        providerOptions: {
+          anthropic: { cacheControl: { type: 'ephemeral' } },
+        },
+      } as any,
+    ];
+
+    const result = convertToHeliconePrompt(prompt);
+
+    expect(result).toEqual([
+      {
+        role: 'system',
+        content: 'You are a helpful assistant.',
+        cache_control: { type: 'ephemeral' },
+      },
+    ]);
+  });
+
+  it('should preserve cache_control on user text content blocks from providerOptions', () => {
+    const prompt: LanguageModelV2Prompt = [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'Long context to cache...',
+            providerOptions: {
+              anthropic: { cacheControl: { type: 'ephemeral' } },
+            },
+          },
+          { type: 'text', text: 'Short question' },
+        ],
+      },
+    ];
+
+    const result = convertToHeliconePrompt(prompt);
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'Long context to cache...',
+            cache_control: { type: 'ephemeral' },
+          },
+          { type: 'text', text: 'Short question' },
+        ],
+      },
+    ]);
+  });
+
+  it('should not add cache_control when providerOptions is absent', () => {
+    const prompt: LanguageModelV2Prompt = [
+      {
+        role: 'system',
+        content: 'You are a helpful assistant.',
+      },
+    ];
+
+    const result = convertToHeliconePrompt(prompt);
+
+    expect(result).toEqual([
+      {
+        role: 'system',
+        content: 'You are a helpful assistant.',
+      },
+    ]);
+    expect(result[0]).not.toHaveProperty('cache_control');
+  });
+
   it('should throw error for unsupported message role', () => {
     const messages = [
       {
