@@ -162,21 +162,38 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
       ...otherExtraBody
     };
 
-    // Handle structured output following OpenAI format (compatible with Helicone)
+    // Handle structured output
+    // Anthropic models use `output_format` (native API), all others use
+    // `response_format` (OpenAI-compatible format). The Helicone gateway
+    // passes these fields through to the underlying provider — Anthropic
+    // ignores `response_format` so we must use their native parameter.
     if (options.responseFormat?.type === 'json') {
-      body.response_format = options.responseFormat.schema != null
-        ? {
-            type: 'json_schema',
-            json_schema: {
-              schema: options.responseFormat.schema,
-              strict: true,
-              name: options.responseFormat.name ?? 'response',
-              ...(options.responseFormat.description && {
-                description: options.responseFormat.description,
-              }),
-            },
-          }
-        : { type: 'json_object' };
+      if (this.modelId.startsWith('anthropic/') && options.responseFormat.schema != null) {
+        body.output_format = {
+          type: 'json_schema',
+          json_schema: {
+            schema: options.responseFormat.schema,
+            name: options.responseFormat.name ?? 'response',
+            ...(options.responseFormat.description && {
+              description: options.responseFormat.description,
+            }),
+          },
+        };
+      } else {
+        body.response_format = options.responseFormat.schema != null
+          ? {
+              type: 'json_schema',
+              json_schema: {
+                schema: options.responseFormat.schema,
+                strict: true,
+                name: options.responseFormat.name ?? 'response',
+                ...(options.responseFormat.description && {
+                  description: options.responseFormat.description,
+                }),
+              },
+            }
+          : { type: 'json_object' };
+      }
     }
 
     // Handle Helicone prompt integration
