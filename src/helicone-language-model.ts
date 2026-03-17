@@ -167,8 +167,10 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
     // `response_format` (OpenAI-compatible format). The Helicone gateway
     // passes these fields through to the underlying provider — Anthropic
     // ignores `response_format` so we must use their native parameter.
+    // Model IDs can be either `anthropic/model` or `model/anthropic` format.
     if (options.responseFormat?.type === 'json') {
-      if (this.modelId.startsWith('anthropic/') && options.responseFormat.schema != null) {
+      const isAnthropic = this.modelId.startsWith('anthropic/') || this.modelId.endsWith('/anthropic');
+      if (isAnthropic && options.responseFormat.schema != null) {
         body.output_format = {
           type: 'json_schema',
           json_schema: {
