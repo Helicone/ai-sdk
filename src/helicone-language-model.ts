@@ -89,6 +89,10 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
     return headers;
   }
 
+  private get fetch(): typeof fetch {
+    return this.settings.fetch ?? fetch;
+  }
+
   /**
    * Normalize tool schemas from the AI SDK into JSON Schema for Helicone.
    * Supports both JSON Schema objects and zod/standard schemas.
@@ -251,7 +255,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
     const body = this.buildRequestBody(options);
 
     try {
-      const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
+      const response = await this.fetch(`${this.baseURL}/v1/chat/completions`, {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(body),
@@ -341,7 +345,7 @@ export class HeliconeLanguageModel implements LanguageModelV2 {
     const body = { ...this.buildRequestBody(options), stream: true };
 
     try {
-      const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
+      const response = await this.fetch(`${this.baseURL}/v1/chat/completions`, {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(body),
