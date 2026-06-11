@@ -149,6 +149,38 @@ describe('Basic Usage - generateText', () => {
     expect(headers['Content-Type']).toBe('application/json');
   });
 
+  it('should use configured custom fetch implementation', async () => {
+    const customFetch = jest.fn<typeof fetch>().mockResolvedValueOnce(createMockResponse({
+      id: 'test-id',
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: 'Custom fetch response'
+        },
+        finish_reason: 'stop'
+      }],
+      usage: {
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        total_tokens: 15
+      }
+    }) as any);
+
+    const customHelicone = createHelicone({
+      apiKey: 'test-key',
+      fetch: customFetch,
+    });
+
+    const result = await generateText({
+      model: customHelicone('gpt-4o'),
+      prompt: 'Test custom fetch',
+    });
+
+    expect(result.text).toBe('Custom fetch response');
+    expect(customFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('should handle maxOutputTokens parameter', async () => {
     mockFetch.mockResolvedValueOnce(createMockResponse({
       id: 'test-id',
@@ -539,4 +571,3 @@ describe('Helicone Metadata Tracking', () => {
     expect(requestBody.stream).toBe(true);
   });
 });
-
